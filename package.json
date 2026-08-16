@@ -1,0 +1,35 @@
+{
+  "name": "springcat-ai",
+  "version": "0.1.0",
+  "description": "Desktop AI task companion — work panel first, pet mode later",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "check": "svelte-check --tsconfig ./tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml",
+    "bridge:build": "cargo build --manifest-path bridge/Cargo.toml --release",
+    "installer:assets": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/generate-installer-assets.ps1",
+    "package:macos": "tauri build --bundles dmg",
+    "package:windows": "tauri build --bundles nsis,msi",
+    "tauri": "tauri"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@tauri-apps/api": "^2",
+    "@tauri-apps/plugin-dialog": "^2"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^6.0.0",
+    "@tauri-apps/cli": "^2",
+    "@types/node": "^24.0.0",
+    "svelte": "^5.0.0",
+    "svelte-check": "^4.0.0",
+    "typescript": "~5.6.2",
+    "vite": "^6.0.3",
+    "vitest": "^3.0.0"
+  }
+}

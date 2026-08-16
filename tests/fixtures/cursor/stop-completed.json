@@ -1,0 +1,8 @@
+{
+  "hook_event_name": "stop",
+  "status": "completed",
+  "conversation_id": "conv-cursor-1",
+  "generation_id": "gen-1",
+  "workspace_roots": ["E:/workspace/demo"],
+  "title": "refactor auth"
+}

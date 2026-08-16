@@ -1,0 +1,7 @@
+{
+  "hookEventName": "stop",
+  "sessionId": "grok-22",
+  "workspaceRoot": "E:/workspace/demo",
+  "timestamp": "2026-08-13T12:00:00Z",
+  "reason": "end_turn"
+}

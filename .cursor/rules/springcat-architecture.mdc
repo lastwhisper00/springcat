@@ -1,0 +1,14 @@
+---
+description: SpringCat architecture boundaries for work-mode-first desktop companion
+alwaysApply: true
+---
+
+# SpringCat 架构约定
+
+- 实现顺序以 `docs/springcat-ai-v1.md` 为准；产品约束以 `docs/项目描述.md` 为准。
+- S09 完成前禁止引入 Rive、`.riv`、宠物形象或宠物窗口。
+- 工具原始字段必须先规范化为 `TaskEvent`，UI 只消费 `TaskItem` / `SurfaceState`。
+- 领域逻辑放在 `src/domain` 与 `src-tauri/src/domain`，两边字段名保持 camelCase JSON 对齐。
+- 不要轮询聊天窗口、不要截屏识别、不要开放本地 HTTP 端口收事件。
+- 默认只有一个常驻 WebView；设置窗口按需创建、关闭即销毁。
+- 不要创建全屏透明窗口或挡住整屏的模态遮罩。

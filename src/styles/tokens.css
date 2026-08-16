@@ -1,0 +1,32 @@
+:root {
+  color-scheme: light dark;
+  --sc-accent: AccentColor;
+  --sc-accent-text: AccentColorText;
+  --sc-bg: color-mix(in srgb, Canvas 82%, transparent);
+  --sc-bg-strong: color-mix(in srgb, Canvas 92%, transparent);
+  --sc-border: color-mix(in srgb, CanvasText 14%, transparent);
+  --sc-text: CanvasText;
+  --sc-muted: color-mix(in srgb, CanvasText 62%, Canvas);
+  --sc-fill: color-mix(in srgb, CanvasText 8%, transparent);
+  --sc-fill-strong: color-mix(in srgb, CanvasText 14%, transparent);
+  --sc-shadow: 0 16px 40px color-mix(in srgb, CanvasText 22%, transparent);
+  --sc-idle: AccentColor;
+  --sc-working: #e0b25a;
+  --sc-waiting: #d4923a;
+  --sc-completed: #7dcaa4;
+  --sc-failed: #d98980;
+  --sc-radius: 22px;
+  --sc-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --sc-motion-strip: 220ms;
+  --sc-motion-travel: 240ms;
+  --sc-motion-panel: 180ms;
+  --sc-motion-dock: 280ms;
+}
+
+@supports not (color: AccentColor) {
+  :root {
+    --sc-accent: Highlight;
+    --sc-accent-text: HighlightText;
+    --sc-idle: Highlight;
+  }
+}

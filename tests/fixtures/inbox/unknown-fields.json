@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "eventId": "evt-unknown-fields",
+  "source": "codex",
+  "type": "task.completed",
+  "taskId": "task-extra",
+  "title": "unknown fields ok",
+  "occurredAt": "2026-08-13T06:10:00.000Z",
+  "extraToolField": { "nested": true },
+  "prompt": "should not leak",
+  "raw": { "transcript": "full dump" }
+}

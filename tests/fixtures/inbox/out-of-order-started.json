@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "eventId": "evt-late-start",
+  "source": "codex",
+  "type": "task.started",
+  "taskId": "task-login",
+  "title": "修复登录页测试",
+  "occurredAt": "2026-08-13T06:00:00.000Z"
+}

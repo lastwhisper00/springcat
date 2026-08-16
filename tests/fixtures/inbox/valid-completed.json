@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "eventId": "evt-valid-1",
+  "source": "codex",
+  "type": "task.completed",
+  "taskId": "task-login",
+  "title": "修复登录页测试",
+  "summary": "已补齐登录页失败用例",
+  "occurredAt": "2026-08-13T06:09:00.000Z"
+}

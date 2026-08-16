@@ -1,0 +1,6 @@
+{
+  "type": "agent-turn-complete",
+  "thread_id": "thread-codex-1",
+  "cwd": "E:/workspace/demo",
+  "last-assistant-message": "fixed login tests"
+}

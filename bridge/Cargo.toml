@@ -1,0 +1,15 @@
+[package]
+name = "springcat-bridge"
+version = "0.1.0"
+edition = "2021"
+description = "Write one SpringCat task event into the local inbox"
+
+[[bin]]
+name = "springcat-bridge"
+path = "src/main.rs"
+
+[dependencies]
+serde_json = "1"
+dirs = "6"
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+rusqlite = { version = "0.32", features = ["bundled"] }
