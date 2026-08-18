@@ -3,7 +3,8 @@ import {
   drawerIdleTarget,
   orbTargetLayout,
   pillTargetLayout,
-  suppressPinnedAutoOpen,
+  suppressUserCollapsedAutoOpen,
+  taskPolicyKey,
 } from "./orb-interaction";
 
 describe("orb interaction", () => {
@@ -26,13 +27,23 @@ describe("orb interaction", () => {
     expect(drawerIdleTarget("expanded")).toBe("peek");
   });
 
-  it("preserves an explicit orb close for the current pinned period", () => {
-    expect(suppressPinnedAutoOpen(true, "collapsed", true)).toBe(true);
+  it("preserves an explicit orb close while task policy still wants a pill", () => {
+    expect(suppressUserCollapsedAutoOpen("collapsed", true)).toBe(true);
   });
 
-  it("does not block a fresh pin, an orb reopen, or a later unpinned period", () => {
-    expect(suppressPinnedAutoOpen(true, "collapsed", false)).toBe(false);
-    expect(suppressPinnedAutoOpen(true, "expanded", true)).toBe(false);
-    expect(suppressPinnedAutoOpen(false, "collapsed", true)).toBe(false);
+  it("does not block policy without an explicit close or after the orb reopens", () => {
+    expect(suppressUserCollapsedAutoOpen("collapsed", false)).toBe(false);
+    expect(suppressUserCollapsedAutoOpen("expanded", true)).toBe(false);
+  });
+
+  it("resets an explicit close only for task identity or status changes", () => {
+    const current = [{ id: "task-1", status: "running" as const }];
+    expect(taskPolicyKey(current)).toBe(taskPolicyKey([...current]));
+    expect(taskPolicyKey(current)).not.toBe(
+      taskPolicyKey([{ id: "task-1", status: "completed" }]),
+    );
+    expect(taskPolicyKey(current)).not.toBe(
+      taskPolicyKey([{ id: "task-2", status: "running" }]),
+    );
   });
 });

@@ -55,7 +55,8 @@
     drawerIdleTarget,
     orbTargetLayout,
     pillTargetLayout,
-    suppressPinnedAutoOpen,
+    suppressUserCollapsedAutoOpen,
+    taskPolicyKey,
   } from "./orb-interaction";
 
   const DRAG_PX = 6;
@@ -77,7 +78,7 @@
   let synchronizedNativeResize = $state(false);
   let userExpanded = $state(false);
   let userPeeked = $state(false);
-  let userCollapsedPinnedPill = $state(false);
+  let userCollapsedPill = $state(false);
   let pinned = $state(false);
   let flow = $state<MotionFlow>("idle");
   let motionFrame = $state<MotionFrame>(idleFrame("collapsed"));
@@ -377,9 +378,14 @@
         settleLayout("collapsed");
         userExpanded = false;
         userPeeked = false;
-        // Keep the already-painted wide WebView surface through contraction.
-        // The native layer moves and clips it around the resting orb without
-        // reallocating WebView2, which avoids a transparent terminal frame.
+        // Paint the resting orb in a surface whose width already matches the
+        // final 48 px native clip. Keeping the old wide surface here makes the
+        // collapsed CSS resolve against that stale viewport on WebView2, so a
+        // side-docked window can clip a blank slice after contraction.
+        await nextPaint();
+        await prepareNativeLayout("collapsed");
+        await nextPaint();
+        await nextPaint();
         await applyNativeLayout("collapsed");
         return;
       }
@@ -497,7 +503,7 @@
     policyPending = false;
     if (userExpanded && layout === "expanded") return;
     if (userPeeked && layout === "peek") return;
-    if (suppressPinnedAutoOpen(pinned, layout, userCollapsedPinnedPill)) return;
+    if (suppressUserCollapsedAutoOpen(layout, userCollapsedPill)) return;
     if (!fromEvent && layout === "expanded") return;
     const { shouldPeek, remainingMs } = autoHideWindow();
     if (layout === "expanded") {
@@ -541,7 +547,7 @@
       if (next) {
         // A new pin period may reveal the pill once. If the user closes it from
         // the orb afterwards, policy updates must respect that decision.
-        userCollapsedPinnedPill = false;
+        userCollapsedPill = false;
         // Enable this before the slide. Windows may normalize a top-edge window
         // to the taskbar work area during any intermediate move.
         await setPanelPinned(true);
@@ -581,12 +587,12 @@
           await setLayout("peek");
         }
       } else if (layout === "expanded") {
-        userCollapsedPinnedPill = false;
+        userCollapsedPill = false;
         await setLayout("collapsed");
         pinned = false;
         await applyPanelLayout("collapsed", lastPhysical, false, false);
       } else if (layout === "peek") {
-        userCollapsedPinnedPill = false;
+        userCollapsedPill = false;
         // Shrink the visible card before trimming the native transparent bounds.
         pinned = false;
         await nextPaint();
@@ -595,7 +601,7 @@
         if (decision.peek) await applyPanelLayout("peek", lastPhysical, false, false);
         else await setLayout("collapsed");
       } else {
-        userCollapsedPinnedPill = false;
+        userCollapsedPill = false;
         pinned = false;
         // A collapsed pinned orb still sits at the physical monitor top. Merely
         // disabling the guard leaves it underneath a reserved top app bar, so
@@ -698,7 +704,7 @@
     if (busy || dynamicIslandResizeBusy) return;
     clearTimers();
     const next = orbTargetLayout(layout);
-    userCollapsedPinnedPill = pinned && next === "collapsed";
+    userCollapsedPill = next === "collapsed";
     userExpanded = next === "expanded";
     userPeeked = false;
     void setLayout(next);
@@ -709,7 +715,7 @@
     clearTimers();
     clearDrawerIdleTimer();
     const next = pillTargetLayout(layout);
-    userCollapsedPinnedPill = false;
+    userCollapsedPill = false;
     if (next === "expanded") {
       userExpanded = true;
       userPeeked = false;
@@ -908,7 +914,9 @@
 
     const unlistenTasks = listen<TaskItem[]>("tasks-updated", (event) => {
       const finishedLastRunning = didFinishLastRunning(taskStore.items, event.payload);
+      const policyChanged = taskPolicyKey(taskStore.items) !== taskPolicyKey(event.payload);
       taskStore.items = event.payload;
+      if (policyChanged) userCollapsedPill = false;
       if (finishedLastRunning) userExpanded = false;
       void queuePinned(shouldPinPanel(settingsStore.value, event.payload)).then(() => {
         applyPolicy(true);

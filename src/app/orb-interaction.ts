@@ -1,4 +1,14 @@
-import type { PanelLayout } from "$domain";
+import type { PanelLayout, TaskItem } from "$domain";
+
+/** Identity/status changes are fresh notification policy; title churn is not. */
+export function taskPolicyKey(
+  tasks: readonly Pick<TaskItem, "id" | "status">[],
+): string {
+  return tasks
+    .map((task) => `${task.id}\u0000${task.status}`)
+    .sort()
+    .join("\u0001");
+}
 
 /** The ball is the panel's master toggle, regardless of the current open shape. */
 export function orbTargetLayout(layout: PanelLayout): PanelLayout {
@@ -16,11 +26,10 @@ export function drawerIdleTarget(layout: PanelLayout): PanelLayout {
   return layout === "expanded" ? "peek" : layout;
 }
 
-/** Keep automatic pin/task policy from undoing an explicit orb close. */
-export function suppressPinnedAutoOpen(
-  pinned: boolean,
+/** Keep task policy from immediately undoing an explicit orb close. */
+export function suppressUserCollapsedAutoOpen(
   layout: PanelLayout,
-  userCollapsedPinnedPill: boolean,
+  userCollapsedPill: boolean,
 ): boolean {
-  return pinned && layout === "collapsed" && userCollapsedPinnedPill;
+  return layout === "collapsed" && userCollapsedPill;
 }

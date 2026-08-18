@@ -667,13 +667,17 @@ fn set_webview_surface<R: Runtime>(
     offset_x: i32,
     offset_y: i32,
 ) -> tauri::Result<()> {
+    use windows::core::{w, PCWSTR};
     use windows::Win32::Foundation::{HWND, RECT};
-    use windows::Win32::UI::WindowsAndMessaging::{SetWindowPos, SWP_NOACTIVATE, SWP_NOZORDER};
+    use windows::Win32::UI::WindowsAndMessaging::{
+        FindWindowExW, SetWindowPos, SWP_NOACTIVATE, SWP_NOZORDER,
+    };
 
     let scale = window.scale_factor()?;
     let (surface_width, surface_height) = webview_surface_size(width, height);
     let physical_width = (surface_width * scale).round() as i32;
     let physical_height = (surface_height * scale).round() as i32;
+    let parent_raw = window.hwnd()?.0 as isize;
 
     window.with_webview(move |webview| unsafe {
         let controller = webview.controller();
@@ -684,14 +688,18 @@ fn set_webview_surface<R: Runtime>(
             bottom: physical_height,
         });
 
-        // Wry resizes this controller host asynchronously from its `WM_SIZE`
-        // handler. Override it synchronously before DWM commits the parent
-        // frame, keeping the transparent backing surface fully allocated.
-        let mut controller_host = HWND::default();
-        if controller.ParentWindow(&mut controller_host).is_ok() {
-            WEBVIEW_SURFACE_HOST.store(controller_host.0 as isize, Ordering::Release);
+        // `ICoreWebView2Controller::ParentWindow` returns SpringCat's outer
+        // HWND, not the child that owns the WebView pixels. Moving that handle
+        // leaves WRY_WEBVIEW at its old wide bounds, so a collapsed parent clips
+        // a slice of the old pill instead of the orb. Target Wry's real child
+        // host and keep it aligned with the prepared screen-space surface.
+        let parent = HWND(parent_raw as *mut core::ffi::c_void);
+        if let Ok(surface_host) =
+            FindWindowExW(Some(parent), None, w!("WRY_WEBVIEW"), PCWSTR::null())
+        {
+            WEBVIEW_SURFACE_HOST.store(surface_host.0 as isize, Ordering::Release);
             let _ = SetWindowPos(
-                controller_host,
+                surface_host,
                 None,
                 offset_x,
                 offset_y,
