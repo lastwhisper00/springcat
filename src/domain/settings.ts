@@ -7,6 +7,7 @@ export interface AdapterToggles {
   grokCli: boolean;
   geminiCli: boolean;
   workBuddy: boolean;
+  marvis: boolean;
 }
 
 export interface AppSettings {
@@ -55,6 +56,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     grokCli: true,
     geminiCli: true,
     workBuddy: true,
+    marvis: true,
   },
 };
 

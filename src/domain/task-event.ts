@@ -6,6 +6,7 @@ export type TaskSource =
   | "grok-cli"
   | "gemini-cli"
   | "workbuddy"
+  | "marvis"
   | "unknown";
 
 export type TaskEventType =
@@ -40,6 +41,7 @@ const TASK_SOURCES: ReadonlySet<string> = new Set([
   "grok-cli",
   "gemini-cli",
   "workbuddy",
+  "marvis",
   "unknown",
 ]);
 

@@ -8,6 +8,7 @@ mod docking;
 mod domain;
 mod event_collector;
 mod logging;
+mod marvis_monitor;
 mod normalizer;
 mod openers;
 mod paths;
@@ -430,6 +431,7 @@ fn parse_adapter_source(source: &str) -> Result<TaskSource, String> {
         "grok-cli" => Ok(TaskSource::GrokCli),
         "gemini-cli" => Ok(TaskSource::GeminiCli),
         "workbuddy" => Ok(TaskSource::WorkBuddy),
+        "marvis" => Ok(TaskSource::Marvis),
         _ => Err("unknown source".into()),
     }
 }
@@ -443,6 +445,7 @@ fn set_adapter_enabled(app: &AppHandle, source: TaskSource, enabled: bool) {
         TaskSource::GrokCli => settings.app.adapters.grok_cli = enabled,
         TaskSource::GeminiCli => settings.app.adapters.gemini_cli = enabled,
         TaskSource::WorkBuddy => settings.app.adapters.work_buddy = enabled,
+        TaskSource::Marvis => settings.app.adapters.marvis = enabled,
         TaskSource::Unknown => {}
     }
     settings_store::save(&settings);
@@ -575,6 +578,7 @@ pub fn run() {
                 (settings.app.adapters.grok_cli, TaskSource::GrokCli),
                 (settings.app.adapters.gemini_cli, TaskSource::GeminiCli),
                 (settings.app.adapters.work_buddy, TaskSource::WorkBuddy),
+                (settings.app.adapters.marvis, TaskSource::Marvis),
             ] {
                 if enabled {
                     if let Err(err) = adapter_installer::install(app.handle(), source) {
@@ -612,6 +616,9 @@ pub fn run() {
             }
             if let Err(err) = workbuddy_monitor::start(app.handle()) {
                 tracing::warn!(error = %err, "WorkBuddy monitor failed to start");
+            }
+            if let Err(err) = marvis_monitor::start(app.handle()) {
+                tracing::warn!(error = %err, "Marvis monitor failed to start");
             }
             if let Err(err) = usage_collector::start(app.handle()) {
                 tracing::warn!(error = %err, "token usage collector failed to start");

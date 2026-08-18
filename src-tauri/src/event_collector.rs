@@ -193,6 +193,7 @@ fn adapter_enabled(app: &AppHandle, source: TaskSource) -> bool {
         TaskSource::GrokCli => toggles.grok_cli,
         TaskSource::GeminiCli => toggles.gemini_cli,
         TaskSource::WorkBuddy => toggles.work_buddy,
+        TaskSource::Marvis => toggles.marvis,
         TaskSource::Unknown => true,
     }
 }
@@ -261,8 +262,11 @@ pub fn emit_adapter_test(app: &AppHandle, source: TaskSource) -> Result<AdapterT
     }
     drain_inbox(app);
 
-    let message = if source == TaskSource::WorkBuddy {
-        "已生成 WorkBuddy 测试完成提醒，请查看桌面圆球。".to_string()
+    let message = if matches!(source, TaskSource::WorkBuddy | TaskSource::Marvis) {
+        format!(
+            "已生成 {} 测试完成提醒，请查看桌面圆球。",
+            source_label(source)
+        )
     } else if via_bridge {
         "已通过 springcat-bridge 发出测试任务。请看桌面圆球。".to_string()
     } else {
@@ -282,6 +286,7 @@ fn test_payload(source: TaskSource) -> serde_json::Value {
         TaskSource::GrokCli => "grok-cli",
         TaskSource::GeminiCli => "gemini-cli",
         TaskSource::WorkBuddy => "workbuddy",
+        TaskSource::Marvis => "marvis",
         TaskSource::Unknown => "unknown",
     };
     let id = uuid::Uuid::new_v4().to_string();
@@ -307,7 +312,7 @@ fn spawn_bridge_emit(source: TaskSource, payload: &serde_json::Value) -> bool {
         TaskSource::Cursor => "cursor",
         TaskSource::GrokCli => "grok-cli",
         TaskSource::GeminiCli => "gemini-cli",
-        TaskSource::WorkBuddy => return false,
+        TaskSource::WorkBuddy | TaskSource::Marvis => return false,
         TaskSource::Unknown => return false,
     };
     let Ok(mut child) = std::process::Command::new(&bridge)
@@ -330,6 +335,14 @@ fn spawn_bridge_emit(source: TaskSource, payload: &serde_json::Value) -> bool {
     }
     drop(stdin);
     child.wait().map(|status| status.success()).unwrap_or(false)
+}
+
+fn source_label(source: TaskSource) -> &'static str {
+    match source {
+        TaskSource::WorkBuddy => "WorkBuddy",
+        TaskSource::Marvis => "Marvis",
+        _ => "AI 工具",
+    }
 }
 
 fn write_inbox(payload: &serde_json::Value) -> Result<(), String> {

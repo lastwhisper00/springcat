@@ -70,6 +70,7 @@ pub fn default_adapters() -> AdapterToggles {
         grok_cli: true,
         gemini_cli: true,
         work_buddy: true,
+        marvis: true,
     }
 }
 

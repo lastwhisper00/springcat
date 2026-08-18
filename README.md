@@ -9,7 +9,7 @@
 ## 主要功能
 
 - **桌面状态面板**：透明无边框、可置顶，可吸附到屏幕顶部、左侧或右侧；支持悬浮球、状态胶囊和最近任务抽屉。
-- **统一任务提醒**：汇总 Codex、Cursor、Grok CLI、Gemini CLI 与 WorkBuddy 的开始、进度、等待、完成、失败和取消状态。
+- **统一任务提醒**：汇总 Codex、Cursor、Grok CLI、Gemini CLI、WorkBuddy 与 Marvis 的开始、进度、等待、完成、失败和取消状态。
 - **低干扰通知策略**：支持未读标记、连续完成合并、静音 1 小时和专注模式；可在任务仍在执行时自动临时置顶。
 - **一键绑定工具**：在设置页安装、修复、移除并测试各工具的监听配置，启动时会检查并修复已启用的绑定。
 - **任务历史与跳转**：本地保存最近任务，支持标记已读、打开任务 deep link，或回到对应的来源应用。
@@ -26,6 +26,7 @@
 | Grok CLI | 全局 hooks | 支持 |
 | Gemini CLI | 官方全局 hooks | 暂不支持 |
 | WorkBuddy | 只读监听本地会话记录 | 暂不支持 |
+| Marvis | 只读监听本地 SQLite/WAL 生命周期 | 支持 |
 
 打开 **设置 → AI 工具** 即可启用监听。SpringCat 会合并自己的 hook，不覆盖其他工具已有配置；详细行为和手动配置方式见 [适配器安装文档](./docs/adapters.md)。
 
@@ -35,7 +36,7 @@
 flowchart LR
     A[Codex / Cursor / Grok / Gemini hooks] --> B[springcat-bridge]
     B --> C[inbox JSON 文件]
-    D[Codex / Cursor / WorkBuddy 本地记录] --> E[Rust 本地监听器]
+    D[Codex / Cursor / WorkBuddy / Marvis 本地记录] --> E[Rust 本地监听器]
     C --> F[事件收集与适配器]
     E --> F
     F --> G[统一 TaskEvent]
@@ -127,6 +128,7 @@ springcat-ai/
 ├─ src-tauri/
 │  ├─ src/domain/             # Rust 领域模型
 │  ├─ src/adapters/           # 各 AI 工具载荷适配器
+│  ├─ src/marvis_monitor.rs   # Marvis SQLite/WAL 生命周期与用量监听
 │  ├─ src/event_collector.rs  # inbox 监听与任务事件主链路
 │  ├─ src/repository.rs       # SQLite 任务与用量仓库
 │  ├─ src/usage_collector.rs  # 本地 Token 用量采集

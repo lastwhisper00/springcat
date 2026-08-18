@@ -27,6 +27,9 @@ pub fn status(source: TaskSource) -> Result<AdapterInstallStatus, String> {
     if source == TaskSource::WorkBuddy {
         return workbuddy_status();
     }
+    if source == TaskSource::Marvis {
+        return marvis_status();
+    }
     ensure_supported(source)?;
     let config_path = config_path(source)?;
     let hooks_installed = if config_path.is_file() {
@@ -65,6 +68,9 @@ pub fn install(app: &tauri::AppHandle, source: TaskSource) -> Result<AdapterInst
     if source == TaskSource::WorkBuddy {
         return workbuddy_status();
     }
+    if source == TaskSource::Marvis {
+        return marvis_status();
+    }
     ensure_supported(source)?;
     let bridge = ensure_bridge(app)?;
     let config = config_path(source)?;
@@ -75,6 +81,9 @@ pub fn install(app: &tauri::AppHandle, source: TaskSource) -> Result<AdapterInst
 pub fn uninstall(source: TaskSource) -> Result<AdapterInstallStatus, String> {
     if source == TaskSource::WorkBuddy {
         return workbuddy_status();
+    }
+    if source == TaskSource::Marvis {
+        return marvis_status();
     }
     ensure_supported(source)?;
     let config = config_path(source)?;
@@ -104,7 +113,8 @@ fn ensure_supported(source: TaskSource) -> Result<(), String> {
         | TaskSource::Cursor
         | TaskSource::GrokCli
         | TaskSource::GeminiCli
-        | TaskSource::WorkBuddy => Ok(()),
+        | TaskSource::WorkBuddy
+        | TaskSource::Marvis => Ok(()),
         _ => Err("这个适配器暂不支持自动安装".to_string()),
     }
 }
@@ -127,6 +137,24 @@ fn workbuddy_status() -> Result<AdapterInstallStatus, String> {
     })
 }
 
+fn marvis_status() -> Result<AdapterInstallStatus, String> {
+    let database =
+        crate::marvis_monitor::database_path().ok_or_else(|| "无法定位用户目录".to_string())?;
+    let installed = database.is_file();
+    Ok(AdapterInstallStatus {
+        source: "marvis".to_string(),
+        installed,
+        config_path: database.display().to_string(),
+        bridge_installed: true,
+        requires_trust: false,
+        message: if installed {
+            "已检测到 Marvis 本地数据库，SpringCat 会只读监听结构化生命周期。".to_string()
+        } else {
+            "尚未检测到 Marvis 本地数据库；请先启动 Marvis 并发起一次对话。".to_string()
+        },
+    })
+}
+
 fn source_key(source: TaskSource) -> &'static str {
     match source {
         TaskSource::Codex => "codex",
@@ -134,6 +162,7 @@ fn source_key(source: TaskSource) -> &'static str {
         TaskSource::GrokCli => "grok-cli",
         TaskSource::GeminiCli => "gemini-cli",
         TaskSource::WorkBuddy => "workbuddy",
+        TaskSource::Marvis => "marvis",
         TaskSource::Unknown => "unknown",
     }
 }

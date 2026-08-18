@@ -6,6 +6,7 @@ export const SOURCE_LABEL: Record<TaskSource, string> = {
   "grok-cli": "Grok",
   "gemini-cli": "Gemini CLI",
   workbuddy: "WorkBuddy",
+  marvis: "Marvis",
   unknown: "未知",
 };
 

@@ -202,7 +202,7 @@ export function restartApp(): Promise<void> {
   return invoke("restart_app");
 }
 
-export type AdapterSource = "codex" | "cursor" | "grok-cli" | "gemini-cli" | "workbuddy";
+export type AdapterSource = "codex" | "cursor" | "grok-cli" | "gemini-cli" | "workbuddy" | "marvis";
 
 export interface AdapterBindInfo {
   inboxDir: string;

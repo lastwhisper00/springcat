@@ -62,6 +62,7 @@
           ...(settings.adapters.codex && sourceInstalled("codex") ? ["codex"] : []),
           ...(settings.adapters.cursor && sourceInstalled("cursor") ? ["cursor"] : []),
           ...(settings.adapters.grokCli && sourceInstalled("grok-cli") ? ["grok-cli"] : []),
+          ...(settings.adapters.marvis && sourceInstalled("marvis") ? ["marvis"] : []),
         ] as UsageSource[])
       : [],
   );
@@ -85,6 +86,10 @@
 
   function setTestNote(selected: AdapterSource, note: string) {
     testNotes = { ...testNotes, [selected]: note };
+  }
+
+  function isPassiveSource(selected: AdapterSource): boolean {
+    return selected === "workbuddy" || selected === "marvis";
   }
 
   async function copyPrompt(selected: AdapterSource) {
@@ -208,6 +213,7 @@
         if (selected === "grok-cli") adapters.grokCli = true;
         if (selected === "gemini-cli") adapters.geminiCli = true;
         if (selected === "workbuddy") adapters.workBuddy = true;
+        if (selected === "marvis") adapters.marvis = true;
         settings = { ...settings, adapters };
       }
       return;
@@ -220,7 +226,7 @@
       settings = await getSettings();
     } catch (err) {
       const message = err instanceof Error ? err.message : "安装失败";
-      setTestNote(selected, selected === "workbuddy" ? message : `${message}。请使用下方“手动绑定”兜底。`);
+      setTestNote(selected, isPassiveSource(selected) ? message : `${message}。请使用下方“手动绑定”兜底。`);
     } finally {
       installing = false;
     }
@@ -239,6 +245,7 @@
     if (selected === "grok-cli") adapters.grokCli = false;
     if (selected === "gemini-cli") adapters.geminiCli = false;
     if (selected === "workbuddy") adapters.workBuddy = false;
+    if (selected === "marvis") adapters.marvis = false;
     await patch({ adapters });
   }
 
@@ -252,7 +259,8 @@
     if (selected === "cursor") return settings.adapters.cursor;
     if (selected === "grok-cli") return settings.adapters.grokCli;
     if (selected === "gemini-cli") return settings.adapters.geminiCli;
-    return settings.adapters.workBuddy;
+    if (selected === "workbuddy") return settings.adapters.workBuddy;
+    return settings.adapters.marvis;
   }
 
   async function removeSource(selected: AdapterSource) {
@@ -288,6 +296,8 @@
   function previewInstallStatus(selected: AdapterSource, installed: boolean): AdapterInstallStatus {
     const home = selected === "workbuddy"
       ? "~/.workbuddy/projects"
+      : selected === "marvis"
+        ? "~/.marvis/database/data.db"
       : selected === "grok-cli"
         ? "~/.grok/hooks/springcat.json"
         : selected === "gemini-cli"
@@ -297,7 +307,7 @@
       source: selected,
       installed,
       configPath: home,
-      bridgeInstalled: selected !== "workbuddy",
+      bridgeInstalled: !isPassiveSource(selected),
       requiresTrust: selected === "codex",
       message: installed ? "监听已连接，SpringCat 会接收任务生命周期事件。" : "尚未安装监听。",
     };
@@ -540,7 +550,7 @@
                     <div class="adapter-row">
                       <span class="adapter-logo source-{adapter.id}"><ToolLogo source={adapter.id} /></span>
                       <span class="adapter-copy"><strong>{adapter.label}</strong><small>{adapter.detail}</small></span>
-                      <span class:online={sourceInstalled(adapter.id)} class="adapter-status"><i></i>{sourceInstalled(adapter.id) ? adapter.id === "workbuddy" ? "监听中" : "已绑定" : "未绑定"}</span>
+                      <span class:online={sourceInstalled(adapter.id)} class="adapter-status"><i></i>{sourceInstalled(adapter.id) ? isPassiveSource(adapter.id) ? "监听中" : "已绑定" : "未绑定"}</span>
                       <input
                         class="switch"
                         type="checkbox"
@@ -567,7 +577,7 @@
                           <div class="connection-heading">
                             <span class:online={installStatus?.installed} class="status-dot"></span>
                             <div>
-                              <strong>{adapter.id === "workbuddy" ? installStatus?.installed ? "已检测到本地会话" : "未检测到 WorkBuddy" : installStatus?.installed ? "监听工作正常" : "尚未绑定"}</strong>
+                              <strong>{isPassiveSource(adapter.id) ? installStatus?.installed ? "已检测到本地会话" : `未检测到 ${adapter.label}` : installStatus?.installed ? "监听工作正常" : "尚未绑定"}</strong>
                               <p>{installStatus?.message ?? "正在检查 hooks 配置…"}</p>
                             </div>
                           </div>
@@ -575,20 +585,21 @@
                           {#if adapter.id === "grok-cli" && installStatus?.installed}<p class="note">Grok 全局 hook 无需项目信任；绑定后请新建或重启一次 Grok 会话。</p>{/if}
                           {#if adapter.id === "gemini-cli" && installStatus?.installed}<p class="note">Gemini CLI 使用官方全局 hooks；现有认证与安全设置会原样保留，绑定后请新建或重启一次会话。</p>{/if}
                           {#if adapter.id === "workbuddy" && installStatus?.installed}<p class="note">直接只读监听本地 JSONL，不会把完整对话、推理和工具输出写入 SpringCat。</p>{/if}
+                          {#if adapter.id === "marvis" && installStatus?.installed}<p class="note">直接只读监听本地 SQLite/WAL，只保存生命周期、短标题、最终摘要和 Token 数字。</p>{/if}
                           <div class="card-actions">
                             <button class="primary-button" type="button" disabled={installing || removing} onclick={() => void installSource(adapter.id)}>
-                              {installing ? "安装中…" : adapter.id === "workbuddy" ? installStatus?.installed ? "重新检测" : "检测 WorkBuddy" : installStatus?.installed ? "修复安装" : "启用监听"}
+                              {installing ? "安装中…" : isPassiveSource(adapter.id) ? installStatus?.installed ? "重新检测" : `检测 ${adapter.label}` : installStatus?.installed ? "修复安装" : "启用监听"}
                             </button>
-                            {#if installStatus?.installed && adapter.id !== "workbuddy"}
+                            {#if installStatus?.installed && !isPassiveSource(adapter.id)}
                               <button class="secondary-button danger" type="button" disabled={installing || removing} onclick={() => void removeSource(adapter.id)}>{removing ? "移除中…" : "移除监听"}</button>
                             {/if}
                             <button class="secondary-button" type="button" disabled={testing || !installStatus?.installed} onclick={() => void runTest(adapter.id)}>{testing ? "测试中…" : "测试连接"}</button>
                           </div>
                         </div>
                         {#if installStatus}
-                          <p class="meta">{adapter.id === "workbuddy" ? "会话目录" : "hooks"}：{installStatus.configPath}{#if adapter.id !== "workbuddy"}<br />bridge：{installStatus.bridgeInstalled ? "已安装" : "缺失"}{/if}</p>
+                          <p class="meta">{isPassiveSource(adapter.id) ? "本地数据" : "hooks"}：{installStatus.configPath}{#if !isPassiveSource(adapter.id)}<br />bridge：{installStatus.bridgeInstalled ? "已安装" : "缺失"}{/if}</p>
                         {/if}
-                        {#if bind && adapter.id !== "workbuddy"}
+                        {#if bind && !isPassiveSource(adapter.id)}
                           <details class="fallback">
                             <summary>自动绑定失败？查看手动配置</summary>
                             <p class="note">复制配置并合并到上面的 hooks 路径。Cursor 保存后会自动重载，Grok 需要新建或重启会话。</p>
@@ -1189,6 +1200,7 @@
   .source-grok-cli { background: color-mix(in srgb, var(--usage-grok) 13%, var(--settings-control)); color: var(--usage-grok); }
   .source-gemini-cli { background: color-mix(in srgb, #8ab4f8 16%, var(--settings-control)); color: #4f86e8; }
   .source-workbuddy { background: color-mix(in srgb, #42b883 13%, var(--settings-control)); color: #2f9b70; }
+  .source-marvis { background: color-mix(in srgb, var(--usage-marvis) 13%, var(--settings-control)); color: var(--usage-marvis); }
 
   .adapter-copy strong {
     font-size: 10.5px;

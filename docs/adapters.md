@@ -1,17 +1,17 @@
 # 适配器安装
 
-SpringCat 不轮询 Codex、Cursor、Grok CLI、Gemini CLI 或 WorkBuddy 的窗口，也不开本地 HTTP 服务。Codex 桌面端与 WorkBuddy 由 SpringCat 直接读取本机追加写入的结构化生命周期记录；Codex、Cursor、Grok 和 Gemini 的 hooks 则通过本地 `springcat-bridge` 发送同样的三类信号：
+SpringCat 不轮询 Codex、Cursor、Grok CLI、Gemini CLI、WorkBuddy 或 Marvis 的窗口，也不开本地 HTTP 服务。Codex 桌面端、WorkBuddy 与 Marvis 由 SpringCat 直接读取本机结构化生命周期记录；Codex、Cursor、Grok 和 Gemini 的 hooks 则通过本地 `springcat-bridge` 发送同样的生命周期信号：
 
 - 开始：一次新提交开始运行
 - 进度：工具调用或 Agent 响应有更新
 - 完成：本轮停止
 
-两条链路都只保留会话 ID、状态、工作区和短标题等生命周期元数据。Cursor 标题通过会话 ID 精确读取本机状态库中的生成名称；名称尚未生成时，只截取首条 prompt 的第一行（最多 80 字符）作为临时标题。WorkBuddy 从其 `<user_query>` 提取最多 80 字的任务标题，并在完成时保留最多 160 字的最终回复摘要。完整 prompt、推理、工具参数/结果和 transcript 路径不会进入 SpringCat 的 inbox 或 SQLite。
+这些链路都只保留会话 ID、状态、工作区和短标题等生命周期元数据。Cursor 标题通过会话 ID 精确读取本机状态库中的生成名称；名称尚未生成时，只截取首条 prompt 的第一行（最多 80 字符）作为临时标题。WorkBuddy 从其 `<user_query>` 提取最多 80 字的任务标题，并在完成时保留最多 160 字的最终回复摘要。Marvis 同样只保留最多 80 字的用户标题、最多 160 字的最终回复摘要和专用计数表中的 Token 数字。完整 prompt、推理、工具参数/结果和 transcript 路径不会进入 SpringCat 的 inbox 或 SQLite。
 
 ## 一键安装（推荐）
 
 1. 打开 SpringCat → 设置 → 适配器。
-2. 选择 Codex 桌面端 / CLI、Cursor、Grok CLI、Gemini CLI 或 WorkBuddy。
+2. 选择 Codex 桌面端 / CLI、Cursor、Grok CLI、Gemini CLI、WorkBuddy 或 Marvis。
 3. 点击「启用监听」。
 
 SpringCat 会自动完成以下操作：
@@ -24,6 +24,8 @@ SpringCat 会自动完成以下操作：
 点击「移除监听」只删除 SpringCat 自己的命令，其他 hook 会保留。
 
 WorkBuddy 不需要安装或修改 hooks。设置页检测到 `~/.workbuddy/projects` 后即可启用直接监听；关闭来源开关只会暂停 SpringCat 接收事件，不会改动 WorkBuddy 会话文件。
+
+Marvis 也不需要安装或修改 hooks。设置页检测到 `~/.marvis/database/data.db` 后即可启用只读监听；SpringCat 不连接 Marvis 的受信任进程接口，也不会修改其数据库。关闭来源开关只暂停生命周期事件接收，Token 计数仍可在重新启用后通过主键去重汇总。
 
 此外，SpringCat 启动时会检查所有已启用来源；发现 bridge 或 hooks 缺失时会自动修复。设置页的来源复选框也会同时完成“安装监听 + 启用来源”，避免只打开接收开关却没有实际绑定。
 
@@ -100,11 +102,34 @@ WorkBuddy 适配器使用只读递增游标监听 JSONL：
 
 WorkBuddy 会把工具调用前的中间说明也标记为 `completed`。SpringCat 不会据此立刻提醒，而是等待短暂静默；如果后续紧跟工具调用，就继续视为运行中。启动时只恢复最近 24 小时内仍停留在推理或工具阶段的任务，不把历史完成对话重新标成未读。
 
+### Marvis
+
+数据库：`~/.marvis/database/data.db`（运行时使用 SQLite WAL）
+
+SpringCat 只读查询 `agui_events`、`approvals`、`messages` 的最终 assistant 文本和 `llm_token_usage` 的数字字段：
+
+| Marvis 记录 | SpringCat 状态 |
+|---|---|
+| `HUMAN_MESSAGE` + `RUN_STARTED` | 开始 |
+| 首个 `REASONING_START` / `TEXT_MESSAGE_START` / `TOOL_CALL_START` | 进度 |
+| `approvals.status = pending` | 等待确认 |
+| 审批完成 | 恢复进行中 |
+| `RUN_FINISHED` | 完成 |
+| `RUN_ERROR` 且 `code = cancelled` | 取消 |
+| 其他 `RUN_ERROR` | 失败 |
+
+每个 `response_id` 对应 SpringCat 中的一轮任务，`conversation_id` 作为会话 ID，因此同一 Marvis 对话中的多次提问不会互相覆盖。监听器以数据库 `rowid` 增量读取并使用 Marvis 原始事件 ID 去重；启动时只恢复仍未出现终止事件的活动轮次，不重放历史完成或取消通知。流式 `REASONING_CONTENT`、`TEXT_MESSAGE_CONTENT`、`TOOL_CALL_ARGS` 和工具结果不会进入读取查询。
+
+点击任务时，SpringCat 通过 Marvis 的 `client/gotoRoute` 伪协议打开对应的 `/chat/:conversationId`，随后用 `windowActive?check_ai_starter=1` 恢复托盘中的主界面。若旧版 Marvis 不支持会话路由，仍会至少唤起软件主界面。
+
+Token 用量直接来自 `llm_token_usage`，映射输入、缓存输入、输出、思考和总 Token；模型价格未知时只展示用量，不臆测费用。
+
 ## 数据链路
 
 ```text
 Codex 本机会话文件 ───────────────────────┐
 WorkBuddy 本地会话 JSONL ─────────────────┤
+Marvis 本地 SQLite/WAL ────────────────────┤
 Codex/Cursor/Grok/Gemini hook             │
   → springcat-bridge（先删除对话和工具内容）│
   → %APPDATA%\springcat-ai\inbox\         │

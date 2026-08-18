@@ -26,6 +26,8 @@ pub struct AdapterToggles {
     pub gemini_cli: bool,
     #[serde(default = "default_enabled")]
     pub work_buddy: bool,
+    #[serde(default = "default_enabled")]
+    pub marvis: bool,
 }
 
 fn default_enabled() -> bool {
@@ -78,6 +80,7 @@ impl Default for AppSettings {
                 grok_cli: true,
                 gemini_cli: true,
                 work_buddy: true,
+                marvis: true,
             },
         }
     }
@@ -159,6 +162,7 @@ mod tests {
         assert!(!settings.auto_pin_while_running);
         assert_eq!(settings.browser_path, None);
         assert!(settings.adapters.gemini_cli);
+        assert!(settings.adapters.marvis);
     }
 
     #[test]

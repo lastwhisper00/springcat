@@ -222,7 +222,8 @@
   function sourceColor(source: UsageSource): string {
     if (source === "codex") return "var(--usage-codex)";
     if (source === "cursor") return "var(--usage-cursor)";
-    return "var(--usage-grok)";
+    if (source === "grok-cli") return "var(--usage-grok)";
+    return "var(--usage-marvis)";
   }
 
   function buildSourceGradient(
@@ -343,7 +344,7 @@
   }
 
   function previewRows(month: string, sources: UsageSource[]): DailyUsage[] {
-    const activeSources = sources.length > 0 ? sources : (["codex", "cursor", "grok-cli"] as UsageSource[]);
+    const activeSources = sources.length > 0 ? sources : (["codex", "cursor", "grok-cli", "marvis"] as UsageSource[]);
     const days = [...new Set([2, 3, 5, 7, 8, 11, 12, 14, 17, 18, 21, 24, 26, 28, now.getDate()])]
       .filter((day) => day <= new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0).getDate())
       .sort((left, right) => left - right);
@@ -356,7 +357,7 @@
           return {
             date: `${month}-${String(day).padStart(2, "0")}`,
             source,
-            model: source === "codex" ? "gpt-5.6-sol" : source === "grok-cli" ? "grok-4.5" : null,
+            model: source === "codex" ? "gpt-5.6-sol" : source === "grok-cli" ? "grok-4.5" : source === "marvis" ? "main-agent" : null,
             contextTier: "short",
             inputTokens,
             cachedInputTokens: Math.round(inputTokens * 0.58),
@@ -494,7 +495,7 @@
         {#each scopedBySource as item}
           <div class="source-chart-row">
             <div class="source-chart-label">
-              <span class:codex={item.source === "codex"} class:cursor={item.source === "cursor"} class:grok={item.source === "grok-cli"}>
+              <span class:codex={item.source === "codex"} class:cursor={item.source === "cursor"} class:grok={item.source === "grok-cli"} class:marvis={item.source === "marvis"}>
                 <i></i>{USAGE_SOURCE_META[item.source].label}
               </span>
               <em>{sourceCollectionLabel(item.source)}</em>
@@ -505,6 +506,7 @@
                 class:codex-bar={item.source === "codex"}
                 class:cursor-bar={item.source === "cursor"}
                 class:grok-bar={item.source === "grok-cli"}
+                class:marvis-bar={item.source === "marvis"}
                 style:width={`${sourceBarWidth(item.totals.totalTokens)}%`}
               ></i>
             </div>
@@ -551,7 +553,7 @@
     <div class="calendar-heading">
       <div class="source-legend" aria-label="统计来源">
         {#each boundSources as source}
-          <span class:codex={source === "codex"} class:cursor={source === "cursor"} class:grok={source === "grok-cli"}>
+          <span class:codex={source === "codex"} class:cursor={source === "cursor"} class:grok={source === "grok-cli"} class:marvis={source === "marvis"}>
             <i></i>{USAGE_SOURCE_META[source].label}
             <em>{sourceCollectionLabel(source)} · {hasSourceData(source) ? "已有数据" : "等待数据"}</em>
           </span>
@@ -592,6 +594,7 @@
                     class:codex={source === "codex"}
                     class:cursor={source === "cursor"}
                     class:grok={source === "grok-cli"}
+                    class:marvis={source === "marvis"}
                     style:flex-grow={sourceTokens(cell, source)}
                   ></i>
                 {/if}
@@ -615,7 +618,7 @@
         </span>
         <div>
           <strong>本月尚无 Token 记录</strong>
-          <p>Codex 与 Grok CLI 会从本地结构化日志自动汇总；Cursor 个人版暂不计入。</p>
+          <p>Codex、Grok CLI 与 Marvis 会从本地结构化记录自动汇总；Cursor 个人版暂不计入。</p>
         </div>
       </div>
     {/if}
@@ -635,7 +638,7 @@
     <div class="breakdown-grid">
       {#each scopedBySource as item}
         <article>
-          <span class="tool-name" class:codex={item.source === "codex"} class:cursor={item.source === "cursor"} class:grok={item.source === "grok-cli"}>
+          <span class="tool-name" class:codex={item.source === "codex"} class:cursor={item.source === "cursor"} class:grok={item.source === "grok-cli"} class:marvis={item.source === "marvis"}>
             <i></i>{USAGE_SOURCE_META[item.source].label}
           </span>
           <strong>{formatCompactTokens(item.totals.totalTokens)}</strong>
@@ -1242,6 +1245,7 @@
   .codex-bar { background: var(--usage-codex); }
   .cursor-bar { background: var(--usage-cursor); }
   .grok-bar { background: var(--usage-grok); }
+  .marvis-bar { background: var(--usage-marvis); }
 
   .today-empty {
     align-self: center;
@@ -1371,6 +1375,7 @@
   .codex { color: var(--usage-codex) !important; }
   .cursor { color: var(--usage-cursor) !important; }
   .grok { color: var(--usage-grok) !important; }
+  .marvis { color: var(--usage-marvis) !important; }
 
   .preview-badge {
     padding: 4px 7px;

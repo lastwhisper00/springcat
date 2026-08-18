@@ -13,6 +13,8 @@ pub enum TaskSource {
     GeminiCli,
     #[serde(rename = "workbuddy")]
     WorkBuddy,
+    #[serde(rename = "marvis")]
+    Marvis,
     Unknown,
 }
 

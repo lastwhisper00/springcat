@@ -1,4 +1,4 @@
-export type UsageSource = "codex" | "cursor" | "grok-cli";
+export type UsageSource = "codex" | "cursor" | "grok-cli" | "marvis";
 
 export interface DailyUsage {
   date: string;

@@ -19,6 +19,7 @@ export const USAGE_SOURCE_META: Record<UsageSource, { label: string; short: stri
   codex: { label: "Codex", short: "CX" },
   cursor: { label: "Cursor", short: "CU" },
   "grok-cli": { label: "Grok CLI", short: "GR" },
+  marvis: { label: "Marvis", short: "MV" },
 };
 
 function pad(value: number): string {
@@ -106,4 +107,3 @@ function aggregateByDate(rows: DailyUsage[]): Map<
   }
   return result;
 }
-

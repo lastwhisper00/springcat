@@ -37,4 +37,10 @@ describe("bindPrompt", () => {
     expect(text).toContain("无需安装 hooks");
     expect(text).toContain(".workbuddy/projects");
   });
+
+  it("explains that Marvis uses passive SQLite monitoring", () => {
+    const text = bindPrompt("marvis", "E:/bridge/springcat-bridge.exe", "E:/data/inbox");
+    expect(text).toContain("无需安装 hooks");
+    expect(text).toContain(".marvis/database/data.db");
+  });
 });

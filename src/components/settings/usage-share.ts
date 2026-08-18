@@ -23,6 +23,7 @@ const SOURCE_META: Record<UsageSource, { label: string; color: string }> = {
   codex: { label: "Codex", color: "#ceff70" },
   cursor: { label: "Cursor", color: "#ff9874" },
   "grok-cli": { label: "Grok CLI", color: "#62ddc8" },
+  marvis: { label: "Marvis", color: "#e36a64" },
 };
 
 const SHARE_CARD_WIDTH = 1200;
@@ -278,7 +279,7 @@ function drawSourceBreakdown(ctx: CanvasRenderingContext2D, input: UsageShareCar
 
   const nonEmpty = input.sources.filter((item) => item.totals.totalTokens > 0);
   const peak = Math.max(1, ...nonEmpty.map((item) => item.totals.totalTokens));
-  nonEmpty.slice(0, 3).forEach((item, index) => {
+  nonEmpty.slice(0, 4).forEach((item, index) => {
     const y = 1360 + index * 70;
     const meta = SOURCE_META[item.source];
     ctx.fillStyle = meta.color;

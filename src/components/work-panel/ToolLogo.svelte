@@ -4,6 +4,7 @@
   import cursorLogo from "../../assets/tool-logos/cursor.svg";
   import geminiCliLogo from "../../assets/tool-logos/gemini-cli.svg";
   import grokLogo from "../../assets/tool-logos/grok.svg";
+  import marvisLogo from "../../assets/tool-logos/marvis.svg";
   import workBuddyLogo from "../../assets/tool-logos/workbuddy.svg";
 
   const LOGO_URL: Partial<Record<TaskSource, string>> = {
@@ -11,6 +12,7 @@
     cursor: cursorLogo,
     "gemini-cli": geminiCliLogo,
     "grok-cli": grokLogo,
+    marvis: marvisLogo,
     workbuddy: workBuddyLogo,
   };
 
@@ -18,7 +20,7 @@
   const logo = $derived(source ? LOGO_URL[source] : undefined);
 </script>
 
-{#if logo && source === "workbuddy"}
+{#if logo && (source === "workbuddy" || source === "marvis")}
   <img class="tool-logo-image" src={logo} alt="" aria-hidden="true" />
 {:else if logo}
   <span

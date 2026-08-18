@@ -78,6 +78,19 @@ describe("parseTaskEvent", () => {
       })?.source,
     ).toBe("gemini-cli");
   });
+
+  it("accepts Marvis as a first-class task source", () => {
+    expect(
+      parseTaskEvent({
+        schemaVersion: 1,
+        eventId: "marvis-1",
+        source: "marvis",
+        type: "task.cancelled",
+        taskId: "response-1",
+        occurredAt: "2026-08-18T08:59:28.574Z",
+      })?.source,
+    ).toBe("marvis");
+  });
 });
 
 describe("applyEventToTask", () => {
@@ -197,5 +210,9 @@ describe("normalizeSettings", () => {
       "C:\\Apps\\Browser.exe",
     );
     expect(normalizeSettings({ browserPath: "   " }).browserPath).toBeUndefined();
+  });
+
+  it("defaults the Marvis passive monitor on for older settings", () => {
+    expect(normalizeSettings({}).adapters.marvis).toBe(true);
   });
 });

@@ -551,6 +551,7 @@ fn source_sql(source: TaskSource) -> &'static str {
         TaskSource::GrokCli => "grok-cli",
         TaskSource::GeminiCli => "gemini-cli",
         TaskSource::WorkBuddy => "workbuddy",
+        TaskSource::Marvis => "marvis",
         TaskSource::Unknown => "unknown",
     }
 }
@@ -562,6 +563,7 @@ fn source_from_sql(value: &str) -> TaskSource {
         "grok-cli" => TaskSource::GrokCli,
         "gemini-cli" => TaskSource::GeminiCli,
         "workbuddy" => TaskSource::WorkBuddy,
+        "marvis" => TaskSource::Marvis,
         _ => TaskSource::Unknown,
     }
 }

@@ -12,6 +12,7 @@ pub mod codex;
 pub mod cursor;
 pub mod gemini_cli;
 pub mod grok_cli;
+pub mod marvis;
 pub mod workbuddy;
 
 pub fn adapt(source: TaskSource, vendor: &Value, envelope: &Value) -> Result<TaskEvent, String> {
@@ -21,6 +22,7 @@ pub fn adapt(source: TaskSource, vendor: &Value, envelope: &Value) -> Result<Tas
         TaskSource::GeminiCli => gemini_cli::from_vendor(vendor, envelope),
         TaskSource::GrokCli => grok_cli::from_vendor(vendor, envelope),
         TaskSource::WorkBuddy => workbuddy::from_vendor(vendor, envelope),
+        TaskSource::Marvis => marvis::from_vendor(vendor, envelope),
         TaskSource::Unknown => Err("unknown source".to_string()),
     }));
     match result {

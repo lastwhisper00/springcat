@@ -49,6 +49,13 @@ pub fn open_item(app: &AppHandle, task: &TaskItem) -> Result<(), String> {
     if task.source == TaskSource::Cursor {
         return open_source(app, task);
     }
+    // Marvis exposes an internal /chat/:conversationId route through its
+    // pseudo protocol. Route first, then explicitly wake the real AI starter
+    // window: a tray-minimized Marvis process keeps a tiny off-screen helper
+    // window that otherwise looks like a successful focus operation.
+    if task.source == TaskSource::Marvis {
+        return open_marvis(app, task);
+    }
     if let Some(link) = task
         .action
         .as_ref()
@@ -64,6 +71,7 @@ pub fn open_item(app: &AppHandle, task: &TaskItem) -> Result<(), String> {
         | TaskSource::GrokCli
         | TaskSource::GeminiCli
         | TaskSource::WorkBuddy
+        | TaskSource::Marvis
         | TaskSource::Unknown => None,
     };
     if let Some(link) = generated_link {
@@ -72,6 +80,41 @@ pub fn open_item(app: &AppHandle, task: &TaskItem) -> Result<(), String> {
         }
     }
     open_source(app, task)
+}
+
+const MARVIS_ACTIVATION_LINK: &str =
+    "marvis://client/windowActive?check_ai_starter=1&from_source=springcat";
+
+fn open_marvis(app: &AppHandle, task: &TaskItem) -> Result<(), String> {
+    let conversation_link = task
+        .action
+        .as_ref()
+        .and_then(|action| action.deep_link.clone())
+        .or_else(|| crate::marvis_monitor::conversation_link_for_response(&task.id));
+
+    if let Some(link) = conversation_link {
+        // ShellExecute only confirms that Windows accepted the URI. Always
+        // follow it with Marvis' starter activation flag so a conversation
+        // routed while the app is in the tray becomes visible.
+        let _ = open_link(app, &link);
+    }
+    if app
+        .opener()
+        .open_url(MARVIS_ACTIVATION_LINK, None::<&str>)
+        .is_ok()
+    {
+        return Ok(());
+    }
+
+    // Older builds may not register the pseudo protocol. In that case focus
+    // a genuine window if possible, then fall back to launching the app.
+    if crate::platform::windows::focus_existing_process_window("Marvis.exe", "Marvis") {
+        return Ok(());
+    }
+    if spawn("Marvis") || spawn("Marvis.exe") {
+        return Ok(());
+    }
+    Ok(())
 }
 
 fn codex_thread_link(task_id: &str) -> Option<String> {
@@ -141,6 +184,7 @@ fn open_source(app: &AppHandle, task: &TaskItem) -> Result<(), String> {
             }
             let _ = app.opener().open_url("workbuddy://", None::<&str>);
         }
+        TaskSource::Marvis => return open_marvis(app, task),
         TaskSource::Unknown => {}
     }
     Ok(())
@@ -207,5 +251,13 @@ mod tests {
     fn rejects_unsafe_task_keys() {
         assert!(!safe_task_key("conversation id&mode=new"));
         assert!(!safe_task_key(""));
+    }
+
+    #[test]
+    fn uses_the_real_marvis_starter_activation_link() {
+        assert_eq!(
+            MARVIS_ACTIVATION_LINK,
+            "marvis://client/windowActive?check_ai_starter=1&from_source=springcat"
+        );
     }
 }

@@ -6,11 +6,15 @@ export const ADAPTERS: { id: AdapterSource; label: string; detail: string }[] = 
   { id: "grok-cli", label: "Grok CLI", detail: "终端编码 Agent" },
   { id: "gemini-cli", label: "Gemini CLI", detail: "Google 终端 Agent" },
   { id: "workbuddy", label: "WorkBuddy", detail: "本地会话监听" },
+  { id: "marvis", label: "Marvis", detail: "腾讯桌面 AI 助手" },
 ];
 
 export function bindPrompt(source: AdapterSource, bridgePath: string, _inboxDir: string): string {
   if (source === "workbuddy") {
     return "WorkBuddy 无需安装 hooks。SpringCat 会只读监听 ~/.workbuddy/projects 下的会话 JSONL。";
+  }
+  if (source === "marvis") {
+    return "Marvis 无需安装 hooks。SpringCat 会只读监听 ~/.marvis/database/data.db 中的结构化生命周期和 Token 计数。";
   }
   const bridge = bridgePath.replace(/\\/g, "/");
   const command = (event: "task.started" | "task.progress" | "task.completed") =>
