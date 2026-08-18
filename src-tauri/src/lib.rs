@@ -64,6 +64,27 @@ fn place_main_window(app: AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn prepare_panel_layout(
+    app: AppHandle,
+    layout: String,
+    x: Option<f64>,
+    y: Option<f64>,
+    dynamic_island_compatible: Option<bool>,
+) -> Result<(), String> {
+    let at = match (x, y) {
+        (Some(px), Some(py)) => Some((px, py)),
+        _ => None,
+    };
+    windows::prepare_layout_surface(
+        &app,
+        PanelLayout::parse(&layout),
+        at,
+        dynamic_island_compatible,
+    )
+    .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
 fn apply_panel_layout(
     app: AppHandle,
     layout: String,
@@ -91,6 +112,16 @@ fn resize_pinned_panel(
     height: f64,
 ) -> Result<windows::DockChanged, String> {
     windows::resize_pinned_panel(&app, width, height).map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+fn resize_panel_frame(
+    app: AppHandle,
+    width: f64,
+    height: f64,
+    pinned: bool,
+) -> Result<windows::DockChanged, String> {
+    windows::resize_panel_frame(&app, width, height, pinned).map_err(|err| err.to_string())
 }
 
 #[tauri::command]
@@ -366,8 +397,15 @@ fn open_settings(app: AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn popup_panel_menu(app: AppHandle, window: tauri::WebviewWindow) -> Result<(), String> {
-    tray::popup_panel_menu(&app, &window).map_err(|err| err.to_string())
+fn popup_panel_menu(app: AppHandle) -> Result<(), String> {
+    windows::open_panel_menu(&app).map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+fn panel_menu_action(app: AppHandle, action: String) -> Result<(), String> {
+    windows::hide_panel_menu(&app).map_err(|err| err.to_string())?;
+    tray::handle_menu(&app, &action);
+    Ok(())
 }
 
 #[tauri::command]
@@ -486,8 +524,10 @@ pub fn run() {
             resize_panel,
             move_panel,
             place_main_window,
+            prepare_panel_layout,
             apply_panel_layout,
             resize_pinned_panel,
+            resize_panel_frame,
             dock_after_drag,
             preview_dock,
             top_pin_target,
@@ -507,6 +547,7 @@ pub fn run() {
             set_focus,
             open_settings,
             popup_panel_menu,
+            panel_menu_action,
             quit_app,
             restart_app,
             adapter_bind_info,

@@ -2,7 +2,17 @@
   import type { DockSide, PanelLayout, SurfaceState } from "$domain";
   import { deriveSurfaceState } from "$domain";
   import WorkPanel from "$components/work-panel/WorkPanel.svelte";
-  import { flowDuration, type MotionFlow } from "$components/work-panel/panel-motion";
+  import {
+    closePlan,
+    foldPlan,
+    idleFrame,
+    openPlan,
+    runMotionPlan,
+    unfoldPlan,
+    type MotionBeat,
+    type MotionFlow,
+    type MotionFrame,
+  } from "$components/work-panel/panel-motion";
   import { DEMO_TASK_LIST, tasksForKind, type DemoKind } from "./fixtures";
 
   const kinds: { id: DemoKind; label: string }[] = [
@@ -21,6 +31,7 @@
   let pinned = $state(false);
   let dynamicIslandCompatible = $state(false);
   let flow = $state<MotionFlow>("idle");
+  let motionFrame = $state<MotionFrame>(idleFrame("collapsed"));
 
   const tasks = $derived(kind === "idle" ? [] : kind === "waiting" ? DEMO_TASK_LIST : tasksForKind(kind));
   const surface = $derived<SurfaceState>(
@@ -36,20 +47,53 @@
     void playClose();
   }
 
+  function settle(next: PanelLayout) {
+    layout = next;
+    flow = "idle";
+    motionFrame = idleFrame(next);
+  }
+
+  async function playMotion(nextFlow: Exclude<MotionFlow, "idle">, plan: MotionBeat[]) {
+    flow = nextFlow;
+    await runMotionPlan(
+      plan,
+      (frame) => {
+        motionFrame = frame;
+      },
+      (ms) =>
+        new Promise((resolve) =>
+          setTimeout(
+            resolve,
+            window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : ms,
+          ),
+        ),
+    );
+  }
+
   async function playOpen(next: PanelLayout) {
     if (flow !== "idle") return;
-    flow = "opening";
     layout = next;
-    await new Promise((resolve) => setTimeout(resolve, flowDuration("opening", next)));
-    flow = "idle";
+    await playMotion("opening", openPlan(next));
+    settle(next);
   }
 
   async function playClose() {
     if (flow !== "idle" || layout === "collapsed") return;
-    flow = "closing";
-    await new Promise((resolve) => setTimeout(resolve, flowDuration("closing", layout)));
-    flow = "idle";
-    layout = "collapsed";
+    await playMotion("closing", closePlan(layout));
+    settle("collapsed");
+  }
+
+  async function playFold() {
+    if (flow !== "idle" || layout !== "expanded") return;
+    await playMotion("folding", foldPlan());
+    settle("peek");
+  }
+
+  async function playUnfold() {
+    if (flow !== "idle" || layout !== "peek") return;
+    layout = "expanded";
+    await playMotion("unfolding", unfoldPlan());
+    settle("expanded");
   }
 </script>
 
@@ -86,12 +130,19 @@
               void playClose();
               return;
             }
+            if (item === "peek" && layout === "expanded") {
+              void playFold();
+              return;
+            }
+            if (item === "expanded" && layout === "peek") {
+              void playUnfold();
+              return;
+            }
             if (layout === "collapsed" && item !== "collapsed") {
               void playOpen(item as PanelLayout);
               return;
             }
-            flow = "idle";
-            layout = item as PanelLayout;
+            settle(item as PanelLayout);
           }}
         >
           {item}
@@ -120,7 +171,7 @@
   </div>
 
   <div class="monitor" data-dock={dockSide} data-pinned={pinned}>
-    <WorkPanel {surface} {tasks} {dockSide} {layout} {pinned} {dynamicIslandCompatible} {flow} onclick={cycleLayout} />
+    <WorkPanel {surface} {tasks} {dockSide} {layout} {pinned} {dynamicIslandCompatible} {flow} {motionFrame} onclick={cycleLayout} />
   </div>
 </div>
 

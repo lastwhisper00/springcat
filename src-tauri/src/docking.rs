@@ -4,7 +4,9 @@ use crate::domain::DockSide;
 
 pub const SNAP_THRESHOLD: f64 = 60.0;
 pub const EDGE_MARGIN: f64 = 4.0;
-pub const ICON_SIZE: f64 = 44.0;
+/// Native collapsed frame. The visible orb is smaller so hover/ring effects
+/// remain inside the transparent HWND instead of being clipped at its edges.
+pub const ICON_SIZE: f64 = 48.0;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PanelLayout {
@@ -155,6 +157,17 @@ pub fn along_preserving_center(side: DockSide, win: Rect, new_w: f64, new_h: f64
     match side {
         DockSide::Top => win.x + win.w * 0.5 - new_w * 0.5,
         DockSide::Left | DockSide::Right => win.y + win.h * 0.5 - new_h * 0.5,
+    }
+}
+
+/// Preserve the orb's screen-space anchor while its native window changes
+/// shape. A top-docked orb lives at the horizontal center of the capsule, but
+/// side-docked orbs live in the top row of the panel rather than its vertical
+/// center, so their y coordinate must remain fixed during expansion.
+pub fn along_preserving_orb(side: DockSide, win: Rect, new_w: f64, new_h: f64) -> f64 {
+    match side {
+        DockSide::Top => along_preserving_center(side, win, new_w, new_h),
+        DockSide::Left | DockSide::Right => along_axis(side, win.x, win.y),
     }
 }
 
@@ -332,6 +345,52 @@ mod tests {
         assert!(
             x > 700.0,
             "must not jump back to the left origin, got x={x}"
+        );
+    }
+
+    #[test]
+    fn top_expand_and_collapse_share_the_same_screen_center() {
+        let icon = Rect {
+            x: 920.0,
+            y: EDGE_MARGIN,
+            w: ICON_SIZE,
+            h: ICON_SIZE,
+        };
+        let expanded_width = 360.0;
+        let expanded_x = along_preserving_center(
+            DockSide::Top,
+            icon,
+            expanded_width,
+            expanded_size(DockSide::Top).1,
+        );
+        let expanded = Rect {
+            x: expanded_x,
+            y: EDGE_MARGIN,
+            w: expanded_width,
+            h: expanded_size(DockSide::Top).1,
+        };
+        let collapsed_x = along_preserving_center(DockSide::Top, expanded, ICON_SIZE, ICON_SIZE);
+
+        assert!((collapsed_x - icon.x).abs() < 1.0);
+        assert!((expanded.x + expanded.w * 0.5 - (icon.x + icon.w * 0.5)).abs() < 1.0);
+    }
+
+    #[test]
+    fn side_expand_keeps_the_orb_in_the_same_top_row() {
+        let icon = Rect {
+            x: EDGE_MARGIN,
+            y: 320.0,
+            w: ICON_SIZE,
+            h: ICON_SIZE,
+        };
+
+        assert_eq!(
+            along_preserving_orb(DockSide::Left, icon, 360.0, 448.0),
+            icon.y
+        );
+        assert_eq!(
+            along_preserving_orb(DockSide::Right, icon, 360.0, 448.0),
+            icon.y
         );
     }
 

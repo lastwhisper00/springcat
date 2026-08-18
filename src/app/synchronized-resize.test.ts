@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import { applySynchronizedResizeStep, synchronizedResizeEase } from "./synchronized-resize";
+import {
+  animateSynchronizedResize,
+  applySynchronizedResizeStep,
+  synchronizedResizeEase,
+} from "./synchronized-resize";
 
 describe("synchronized dynamic-island resize", () => {
   it("grows native bounds before rendering a wider panel", async () => {
@@ -40,5 +44,31 @@ describe("synchronized dynamic-island resize", () => {
     expect(synchronizedResizeEase(0.5)).toBeCloseTo(0.5);
     expect(synchronizedResizeEase(1)).toBe(1);
     expect(synchronizedResizeEase(2)).toBe(1);
+  });
+
+  it("interpolates native width and height through the same timeline", async () => {
+    const seen: { width: number; height: number }[] = [];
+    const timestamps = [0, 50, 100];
+
+    await animateSynchronizedResize({
+      from: { width: 360, height: 48 },
+      to: { width: 520, height: 448 },
+      duration: 100,
+      resize: async (dimensions) => {
+        seen.push(dimensions);
+      },
+      now: () => 0,
+      requestFrame: (callback) => {
+        const timestamp = timestamps.shift();
+        if (timestamp === undefined) throw new Error("unexpected animation frame");
+        queueMicrotask(() => callback(timestamp));
+      },
+    });
+
+    expect(seen).toEqual([
+      { width: 360, height: 48 },
+      { width: 440, height: 248 },
+      { width: 520, height: 448 },
+    ]);
   });
 });

@@ -12,12 +12,13 @@
     shellSize,
   } from "./copy";
   import {
-    closePlan,
     idleFrame,
-    openPlan,
-    playPlan,
+    MOTION,
+    orbRollDirection,
+    orbSize,
+    orbSurfaceSide,
     resolveAlign,
-    type BallLane,
+    type MotionFrame,
     type MotionFlow,
     type MotionStage,
   } from "./panel-motion";
@@ -26,6 +27,7 @@
     surface,
     tasks = [],
     dockSide = "top",
+    orbAnchorSide = dockSide,
     layout = "collapsed",
     pinned = false,
     dynamicIslandCompatible = false,
@@ -34,6 +36,7 @@
     fillWindow = false,
     snapPreview = false,
     flow = "idle",
+    motionFrame,
     onclick,
     ondblclick,
     oncontextmenu,
@@ -43,6 +46,7 @@
     surface: SurfaceState;
     tasks?: TaskItem[];
     dockSide?: DockSide;
+    orbAnchorSide?: DockSide;
     layout?: PanelLayout;
     pinned?: boolean;
     dynamicIslandCompatible?: boolean;
@@ -52,6 +56,7 @@
     fillWindow?: boolean;
     snapPreview?: boolean;
     flow?: MotionFlow;
+    motionFrame?: MotionFrame;
     onclick?: () => void;
     ondblclick?: () => void;
     oncontextmenu?: (event: MouseEvent) => void;
@@ -79,17 +84,31 @@
   const action = $derived(panelActionLabel(surface));
   const unread = $derived(surface.kind === "completed" && surface.unread);
 
-  let stage = $state<MotionStage>("icon");
-  let ballLane = $state<BallLane>("edge");
+  const frame = $derived(motionFrame ?? idleFrame(layout));
+  const stage = $derived<MotionStage>(frame.stage);
+  const ballLane = $derived(frame.ball);
 
-  const ballAlign = $derived(resolveAlign(dockSide, ballLane));
+  const ballSurfaceSide = $derived(
+    orbSurfaceSide(dockSide, orbAnchorSide, layout, flow, stage),
+  );
+  const ballAlign = $derived(resolveAlign(ballSurfaceSide, ballLane));
+  const rollDirection = $derived(orbRollDirection(dockSide, flow, stage, ballLane));
   const showCard = $derived(!(flow === "idle" && layout === "collapsed"));
   const isIcon = $derived(!showCard);
   const showCopy = $derived(stage !== "icon" && (stage === "panel" || ballLane === "inner"));
 
   $effect(() => {
-    const identity = carouselIdentity;
+    carouselIdentity;
     carouselIndex = 0;
+  });
+
+  $effect(() => {
+    const identity = carouselIdentity;
+    const motionIdle = flow === "idle";
+    // A task/logo swap while the orb is settling reads as a flash at its final
+    // position. Freeze the current carousel item for the whole motion and give
+    // it a fresh interval only after the panel is fully idle again.
+    if (!motionIdle) return;
     if (!identity) return;
 
     const count = identity.split("\u0000").length;
@@ -101,35 +120,6 @@
     return () => clearInterval(timer);
   });
 
-  $effect(() => {
-    const nextFlow = flow;
-    const nextLayout = layout;
-    let cancelled = false;
-    const reduced =
-      typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-    if (nextFlow === "idle") {
-      const idle = idleFrame(nextLayout);
-      stage = idle.stage;
-      ballLane = idle.ball;
-      return;
-    }
-
-    const plan = nextFlow === "opening" ? openPlan(nextLayout) : closePlan(nextLayout);
-    void playPlan(
-      plan,
-      (frame) => {
-        stage = frame.stage;
-        ballLane = frame.ball;
-      },
-      (ms) => new Promise((resolve) => setTimeout(resolve, reduced ? 0 : ms)),
-      () => cancelled,
-    );
-
-    return () => {
-      cancelled = true;
-    };
-  });
 </script>
 
 <section
@@ -149,9 +139,13 @@
   data-stage={stage}
   data-ball={ballAlign}
   data-ball-lane={ballLane}
+  data-roll={rollDirection}
   style:width={fillWindow ? "100%" : `${renderedWidth}px`}
   style:height={fillWindow ? "100%" : `${size.height}px`}
   style:--sc-card-width={fillWindow ? "100%" : `${renderedWidth}px`}
+  style:--sc-step-strip={`${MOTION.strip}ms`}
+  style:--sc-step-travel={`${MOTION.travel}ms`}
+  style:--sc-step-panel={`${MOTION.panel}ms`}
   role="button"
   tabindex="0"
   {onclick}
@@ -164,13 +158,26 @@
     }
   }}
 >
-  <div class="ball-slot">
-    <DockIcon {surface} source={task?.source ?? null} swapKey={task?.id} size={showCard ? 32 : 36} drag />
+  <div class="ball-slot" data-orb-control="true">
+    <DockIcon
+      {surface}
+      source={task?.source ?? null}
+      swapKey={task?.id}
+      size={orbSize(stage)}
+      drag={layout !== "expanded"}
+    />
   </div>
 
   {#if showCard}
     <div class="card" data-drag-afford={layout === "peek" ? "true" : undefined}>
-      <header class="chrome">
+      <header
+        class="chrome"
+        data-pill-control="true"
+        role="button"
+        tabindex="0"
+        aria-label={layout === "expanded" ? "收起会话列表" : "展开会话列表"}
+        aria-expanded={layout === "expanded"}
+      >
         {#if ballAlign === "start"}
           <span class="ball-spacer"></span>
         {/if}
@@ -206,7 +213,7 @@
         {/if}
       </header>
 
-      {#if layout === "expanded" || flow === "closing"}
+      {#if layout === "expanded" || flow === "unfolding"}
         <div class="drawer-slot" class:ready={stage === "panel"}>
           <TaskDrawer {tasks} {ontaskopen} />
         </div>
@@ -227,10 +234,12 @@
     --sc-step-travel: var(--sc-motion-travel);
     --sc-step-panel: var(--sc-motion-panel);
     --sc-width-motion: var(--sc-step-strip);
+    --sc-height-motion: var(--sc-step-panel);
   }
 
   .shell[data-synchronized-native-resize="true"] {
     --sc-width-motion: 0ms;
+    --sc-height-motion: 0ms;
   }
 
   .shell.open {
@@ -238,37 +247,82 @@
   }
 
   .shell.icon {
+    align-items: start;
     border-radius: 50%;
     background: transparent;
   }
 
+  /* Give the final 48 px transparent WebView an explicit, compositor-stable
+     orb position. `left: 50%` preserves the same screen-space center while
+     the native window contracts; the 6 px top inset leaves room for the ring
+     and hover scale instead of clipping them against the window edge. */
+  .shell.icon .ball-slot {
+    position: absolute;
+    top: 6px;
+    display: grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+  }
+
+  .shell.icon[data-ball="center"] .ball-slot {
+    left: 50%;
+    transform: translateX(-50%);
+  }
+
+  .shell.icon[data-ball="start"] .ball-slot {
+    left: 6px;
+  }
+
+  .shell.icon[data-ball="end"] .ball-slot {
+    left: calc(100% - 42px);
+  }
+
   .ball-slot {
     z-index: 3;
+    cursor: pointer;
+    will-change: left;
+  }
+
+  .shell[data-roll="clockwise"] .ball-slot :global(.orb) {
+    animation: sc-orb-roll-clockwise var(--sc-step-travel) var(--sc-ease) both;
+  }
+
+  .shell[data-roll="counterclockwise"] .ball-slot :global(.orb) {
+    animation: sc-orb-roll-counterclockwise var(--sc-step-travel) var(--sc-ease) both;
   }
 
   .shell.open .ball-slot {
     position: absolute;
     top: 8px;
     left: 8px;
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
     transition:
       top var(--sc-step-strip) var(--sc-ease),
       left var(--sc-step-travel) var(--sc-ease);
   }
 
   .shell.open[data-stage="icon"] .ball-slot {
-    top: 6px;
+    top: 8px;
   }
 
   .shell.open[data-ball="end"] .ball-slot {
     left: calc(100% - 40px);
   }
 
+  .shell.open[data-ball="center"] .ball-slot {
+    left: calc(50% - 16px);
+  }
+
   .shell.open[data-stage="icon"][data-ball="start"] .ball-slot {
-    left: 6px;
+    left: 8px;
   }
 
   .shell.open[data-stage="icon"][data-ball="end"] .ball-slot {
-    left: calc(100% - 38px);
+    left: calc(100% - 40px);
   }
 
   .ball-spacer {
@@ -277,7 +331,10 @@
     flex-shrink: 0;
   }
 
-  .shell.icon:hover :global(.orb) {
+  /* Keep the hover scale attached to the orb and the visual icon stage. The
+     `.icon` container class is removed at the opening seed and restored after
+     closing; using it here made the scale reset/pop on both transitions. */
+  .shell[data-stage="icon"] .ball-slot:hover :global(.orb) {
     transform: scale(1.06);
     transition: transform 180ms var(--sc-ease);
   }
@@ -295,20 +352,21 @@
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    height: 44px;
-    width: 44px;
+    height: 48px;
+    width: 48px;
     opacity: 0;
     transform: scale(0.76, 0.86);
-    transform-origin: 22px 22px;
+    transform-origin: 24px 24px;
     border-radius: 50%;
     background-color: transparent;
     border: 1px solid transparent;
     box-shadow: none;
     isolation: isolate;
-    will-change: width, height, opacity, transform;
+    will-change: width, height, opacity, transform, clip-path;
     transition:
-      height var(--sc-step-panel) var(--sc-ease),
+      height var(--sc-height-motion) var(--sc-ease),
       width var(--sc-width-motion) cubic-bezier(0.16, 1, 0.3, 1),
+      clip-path var(--sc-step-strip) cubic-bezier(0.4, 0, 0.2, 1),
       opacity 150ms ease-out,
       transform var(--sc-step-strip) cubic-bezier(0.16, 1.12, 0.3, 1),
       background-color 140ms ease-out,
@@ -319,11 +377,19 @@
   }
 
   .shell[data-ball="end"] .card {
-    transform-origin: calc(100% - 22px) 22px;
+    transform-origin: calc(100% - 24px) 24px;
+  }
+
+  .shell[data-ball="center"] .card {
+    transform-origin: 50% 24px;
   }
 
   .shell[data-ball="end"][data-stage="icon"] .card {
-    left: calc(100% - 44px);
+    left: calc(100% - 48px);
+  }
+
+  .shell[data-ball="center"][data-stage="icon"] .card {
+    left: calc(50% - 24px);
   }
 
   .shell[data-stage="strip"] .card,
@@ -343,6 +409,34 @@
   .shell[data-pinned="true"][data-stage="strip"] .card,
   .shell[data-pinned="true"][data-stage="panel"] .card {
     background-color: Canvas;
+  }
+
+  /* A top-docked pill grows symmetrically out of the centered orb. Its 32 px
+     seed stays fully behind the ball, then both ends visibly expand from —
+     and contract back into — that ball instead of flashing a 48 px halo. */
+  .shell.open[data-dock="top"] .card {
+    left: 0;
+    width: var(--sc-card-width);
+    opacity: 1;
+    clip-path: inset(0 calc(50% - 16px) round 16px);
+    border-radius: 24px;
+    background-color: var(--sc-bg);
+    border-color: var(--sc-border);
+  }
+
+  .shell.open[data-dock="top"][data-pinned="true"] .card {
+    background-color: Canvas;
+  }
+
+  .shell.open[data-dock="top"][data-stage="icon"] .card {
+    left: 0;
+    transform: scaleY(0.82);
+  }
+
+  .shell.open[data-dock="top"][data-stage="strip"] .card,
+  .shell.open[data-dock="top"][data-stage="panel"] .card {
+    clip-path: inset(0 round 24px);
+    transform: scaleY(1);
   }
 
   .shell[data-stage="strip"] .card {
@@ -366,31 +460,21 @@
     border-radius: var(--sc-radius);
   }
 
-  .shell[data-flow="opening"][data-stage="strip"] .card::after {
-    content: "";
-    position: absolute;
-    z-index: 4;
-    top: -1px;
-    left: 8%;
-    width: 28%;
-    height: 1px;
-    border-radius: 999px;
-    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.5), transparent);
-    pointer-events: none;
-    animation: sc-frame-glint 420ms ease-out both;
-  }
-
-  @keyframes sc-frame-glint {
+  @keyframes sc-orb-roll-clockwise {
     from {
-      transform: translateX(-65%);
-      opacity: 0;
-    }
-    35% {
-      opacity: 0.65;
+      transform: rotate(0turn);
     }
     to {
-      transform: translateX(230%);
-      opacity: 0;
+      transform: rotate(1turn);
+    }
+  }
+
+  @keyframes sc-orb-roll-counterclockwise {
+    from {
+      transform: rotate(0turn);
+    }
+    to {
+      transform: rotate(-1turn);
     }
   }
 
@@ -406,17 +490,34 @@
 
   .copy,
   .source,
-  .action,
-  .drawer-slot {
+  .action {
     opacity: 0;
-    transition: opacity 160ms var(--sc-ease);
+    transition: opacity 180ms var(--sc-ease);
   }
 
   .copy.ready,
   .source.ready,
-  .action.ready,
+  .action.ready {
+    opacity: 1;
+  }
+
+  .drawer-slot {
+    opacity: 0;
+    transform: translateY(-7px) scaleY(0.985);
+    transform-origin: top center;
+    transition:
+      opacity 300ms ease,
+      transform var(--sc-step-panel) cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
   .drawer-slot.ready {
     opacity: 1;
+    transform: translateY(0) scaleY(1);
+  }
+
+  .shell[data-flow="folding"] .drawer-slot {
+    opacity: 0;
+    transform: translateY(-7px) scaleY(0.985);
   }
 
   .copy {
@@ -428,11 +529,11 @@
   /* The source keeps its own non-shrinking column. The conversation title is
      centered inside the remaining safe area and ellipsizes there, so it can
      never paint across the AI tool name. */
-  .shell[data-pinned="true"][data-layout="peek"] .line {
+  .shell[data-pinned="true"][data-stage="strip"] .line {
     justify-content: center;
   }
 
-  .shell[data-pinned="true"][data-layout="peek"] .summary {
+  .shell[data-pinned="true"][data-stage="strip"] .summary {
     text-align: center;
   }
 
@@ -563,7 +664,7 @@
     }
 
     .copy-swap,
-    .card::after {
+    .ball-slot :global(.orb) {
       animation: none !important;
     }
   }

@@ -16,7 +16,6 @@ pub struct TrayMenu {
     pub pin: CheckMenuItem<Wry>,
     pub focus: CheckMenuItem<Wry>,
     pub mute: CheckMenuItem<Wry>,
-    pub panel: Menu<Wry>,
 }
 
 pub fn setup_tray(app: &tauri::App) -> tauri::Result<()> {
@@ -88,7 +87,6 @@ pub fn setup_tray(app: &tauri::App) -> tauri::Result<()> {
         pin: pin.clone(),
         focus: focus.clone(),
         mute: mute.clone(),
-        panel: menu.clone(),
     });
 
     let icon = app
@@ -154,13 +152,6 @@ pub fn handle_menu(app: &AppHandle, id: &str) {
         }
         _ => {}
     }
-}
-
-pub fn popup_panel_menu(app: &AppHandle, window: &tauri::WebviewWindow) -> tauri::Result<()> {
-    if let Some(tray) = app.try_state::<TrayMenu>() {
-        window.popup_menu(&tray.panel)?;
-    }
-    Ok(())
 }
 
 fn toggle_always_on_top(app: &AppHandle) -> bool {

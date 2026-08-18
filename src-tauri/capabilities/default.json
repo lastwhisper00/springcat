@@ -1,7 +1,7 @@
 {
   "identifier": "default",
-  "description": "Main work-panel and on-demand settings window.",
-  "windows": ["main", "settings"],
+  "description": "Main work-panel, context menu, and on-demand settings window.",
+  "windows": ["main", "settings", "panel-menu"],
   "permissions": [
     "core:default",
     "core:window:allow-start-dragging",

@@ -35,8 +35,8 @@ describe("panel copy", () => {
 
 describe("shellSize", () => {
   it("matches the documented logical sizes", () => {
-    expect(shellSize("top", "collapsed", "card")).toEqual({ width: 44, height: 44 });
-    expect(shellSize("left", "collapsed", "strip")).toEqual({ width: 44, height: 44 });
+    expect(shellSize("top", "collapsed", "card")).toEqual({ width: 48, height: 48 });
+    expect(shellSize("left", "collapsed", "strip")).toEqual({ width: 48, height: 48 });
     expect(shellSize("right", "peek", "card")).toEqual({ width: 268, height: 48 });
     expect(shellSize("top", "peek", "strip", true)).toEqual({ width: 360, height: 48 });
     expect(shellSize("top", "peek", "strip", true, true)).toEqual({ width: 520, height: 48 });

@@ -61,7 +61,11 @@
       inset 0 -5px 10px rgba(0, 0, 0, 0.28);
     overflow: visible;
     flex-shrink: 0;
-    transition: transform 180ms var(--sc-ease, cubic-bezier(0.22, 1, 0.36, 1));
+    transition:
+      width var(--sc-step-strip, 280ms) cubic-bezier(0.4, 0, 0.2, 1),
+      height var(--sc-step-strip, 280ms) cubic-bezier(0.4, 0, 0.2, 1),
+      transform 180ms var(--sc-ease, cubic-bezier(0.22, 1, 0.36, 1));
+    will-change: width, height, transform;
   }
 
   .orb.drag {

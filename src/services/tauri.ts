@@ -51,8 +51,31 @@ export function applyPanelLayout(
   });
 }
 
+export function preparePanelLayout(
+  layout: "collapsed" | "peek" | "expanded",
+  position?: { x: number; y: number } | null,
+  pinned = false,
+  dynamicIslandCompatible?: boolean,
+): Promise<void> {
+  return invoke("prepare_panel_layout", {
+    layout: pinned ? `pinned-${layout}` : layout,
+    x: position?.x,
+    y: position?.y,
+    dynamicIslandCompatible,
+  });
+}
+
 export function resizePinnedPanel(width: number, height: number): Promise<DockChanged> {
   return invoke("resize_pinned_panel", { width, height });
+}
+
+/** Resize one animation frame without snapping to a discrete panel layout. */
+export function resizePanelFrame(
+  width: number,
+  height: number,
+  pinned: boolean,
+): Promise<DockChanged> {
+  return invoke("resize_panel_frame", { width, height, pinned });
 }
 
 export function dockAfterDrag(position?: { x: number; y: number } | null): Promise<DockChanged> {
@@ -156,6 +179,19 @@ export function openSettings(): Promise<void> {
 
 export function popupPanelMenu(): Promise<void> {
   return invoke("popup_panel_menu");
+}
+
+export type PanelMenuAction =
+  | "view-tasks"
+  | "mute"
+  | "focus"
+  | "dynamic-island"
+  | "pin"
+  | "settings"
+  | "quit";
+
+export function runPanelMenuAction(action: PanelMenuAction): Promise<void> {
+  return invoke("panel_menu_action", { action });
 }
 
 export function quitApp(): Promise<void> {

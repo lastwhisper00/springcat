@@ -15,8 +15,8 @@
       {
         "label": "main",
         "title": "SpringCat",
-        "width": 44,
-        "height": 44,
+        "width": 48,
+        "height": 48,
         "decorations": false,
         "transparent": true,
         "backgroundColor": [0, 0, 0, 0],

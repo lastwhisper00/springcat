@@ -18,7 +18,12 @@ use crate::settings_store::{self, MonitorDock, PersistedSettings};
 
 pub const MAIN_WINDOW_LABEL: &str = "main";
 pub const SETTINGS_WINDOW_LABEL: &str = "settings";
+pub const PANEL_MENU_WINDOW_LABEL: &str = "panel-menu";
 const WEBVIEW_BROWSER_ARGS: &str = "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --disable-blink-features=MiddleClickAutoscroll";
+const PANEL_MENU_WIDTH: f64 = 284.0;
+const PANEL_MENU_HEIGHT: f64 = 366.0;
+const PANEL_MENU_GAP: f64 = 8.0;
+const PANEL_MENU_SCREEN_MARGIN: f64 = 6.0;
 
 /// The persisted pin flag controls the overlay's placement and pinned layout,
 /// not whether the orb can be covered by ordinary application windows. The
@@ -77,6 +82,7 @@ pub fn setup_main_window(app: &AppHandle) -> tauri::Result<()> {
         .unwrap_or((true, false));
     platform::windows::set_pinned_top_guard(on_top);
     window.set_always_on_top(overlay_native_topmost(on_top))?;
+    platform::macos::configure_overlay_window(&window)?;
     let (side, along) = current_side_along(app, &window)?;
     let initial_layout = if on_top {
         PanelLayout::PinnedCollapsed
@@ -140,7 +146,7 @@ fn settle_window_if_idle(app: &AppHandle) -> tauri::Result<()> {
         };
         // Native window dragging does not reliably return a pointer-up event to
         // the WebView. Re-anchor every pinned shape after movement settles, not
-        // just the 44 px collapsed orb, while preserving its current layout.
+        // just the 48 px collapsed orb frame, while preserving its current layout.
         let layout = if size.height >= 280.0 {
             PanelLayout::PinnedExpanded
         } else if size.width >= 160.0 {
@@ -228,23 +234,25 @@ pub fn work_rect<R: Runtime>(
 
 /// Bounds used by the centered pinned pill.
 ///
-/// Windows uses the full monitor so an auto-hidden/top taskbar reservation
-/// cannot create a visible gap. Other platforms keep using the system work
-/// area; on macOS that is the future-safe boundary below the menu bar/notch.
+/// Windows and macOS use the full monitor so a reserved top system bar cannot
+/// push the pinned pill into a second row. On macOS the native window is also
+/// promoted to status-bar level, allowing this physical top coordinate to sit
+/// in the menu-bar/notch row instead of being hidden behind it.
+fn pinned_top_uses_full_monitor() -> bool {
+    cfg!(any(target_os = "windows", target_os = "macos"))
+}
+
 fn pinned_top_rect<R: Runtime>(window: &WebviewWindow<R>) -> tauri::Result<Option<Rect>> {
     let Some(monitor) = window.current_monitor()? else {
         return Ok(None);
     };
     let scale = monitor.scale_factor();
-
-    #[cfg(target_os = "windows")]
-    let (origin, area) = (
-        monitor.position().to_logical::<f64>(scale),
-        monitor.size().to_logical::<f64>(scale),
-    );
-
-    #[cfg(not(target_os = "windows"))]
-    let (origin, area) = {
+    let (origin, area) = if pinned_top_uses_full_monitor() {
+        (
+            monitor.position().to_logical::<f64>(scale),
+            monitor.size().to_logical::<f64>(scale),
+        )
+    } else {
         let work = monitor.work_area();
         (
             work.position.to_logical::<f64>(scale),
@@ -286,6 +294,49 @@ pub fn apply_layout(app: &AppHandle, layout: PanelLayout) -> tauri::Result<()> {
     apply_layout_at(app, layout, None, None)
 }
 
+/// Prepare the full WebView surface at the target screen coordinates without
+/// changing the outer HWND yet. The UI waits for that surface to paint before
+/// `apply_layout_at` exposes it, eliminating the stale collapsed-frame copy on
+/// Windows expansion.
+pub fn prepare_layout_surface(
+    app: &AppHandle,
+    layout: PanelLayout,
+    at_physical: Option<(f64, f64)>,
+    dynamic_island_override: Option<bool>,
+) -> tauri::Result<()> {
+    let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) else {
+        return Ok(());
+    };
+    let Some((work, scale, _)) = work_rect(&window)? else {
+        return Ok(());
+    };
+    let pos = live_logical_pos(app, &window, scale, at_physical)?;
+    let size = window.outer_size()?.to_logical::<f64>(scale);
+    let win = Rect {
+        x: pos.x,
+        y: pos.y,
+        w: size.width,
+        h: size.height,
+    };
+    let side = if layout.is_pinned() {
+        DockSide::Top
+    } else {
+        docking::nearest_side(work, win)
+    };
+    let dynamic_island_compatible =
+        dynamic_island_override.unwrap_or_else(|| dynamic_island_compatible(app));
+    let (width, height) = docking::size_for(side, layout, dynamic_island_compatible);
+    let along = docking::along_preserving_orb(side, win, width, height);
+    let (x, y) = if layout.is_pinned() {
+        let bounds = pinned_top_rect(&window)?.unwrap_or(work);
+        docking::pinned_top_position(bounds, width)
+    } else {
+        docking::docked_position(work, side, along, width, height)
+    };
+
+    platform::windows::prepare_window_bounds(&window, x, y, width, height)
+}
+
 pub fn apply_layout_at(
     app: &AppHandle,
     layout: PanelLayout,
@@ -311,13 +362,20 @@ pub fn apply_layout_at(
     } else {
         docking::nearest_side(work, win)
     };
-    let along = docking::along_axis(side, win.x, win.y);
+    let dynamic_island_compatible =
+        dynamic_island_override.unwrap_or_else(|| dynamic_island_compatible(app));
+    let (target_width, target_height) = docking::size_for(side, layout, dynamic_island_compatible);
+    // Keep the orb itself fixed, not the window's geometric center. Top pills
+    // grow around their centered orb; side panels grow downward from the orb's
+    // row. Centering a 448 px side panel around a 48 px orb would first move the
+    // orb roughly 200 px upward and cause the visible opening flash.
+    let along = docking::along_preserving_orb(side, win, target_width, target_height);
     let (x, y) = apply_side_layout(
         &window,
         side,
         Some(along),
         layout,
-        dynamic_island_override.unwrap_or_else(|| dynamic_island_compatible(app)),
+        dynamic_island_compatible,
     )?;
     remember_logical(app, x, y, scale);
     persist_dock(app, &key, side, docking::along_axis(side, x, y));
@@ -530,6 +588,69 @@ pub fn resize_pinned_panel(app: &AppHandle, width: f64, height: f64) -> tauri::R
     })
 }
 
+/// Resize a single animation frame while preserving the active dock anchor.
+/// Unlike `apply_layout`, this accepts intermediate dimensions so the WebView
+/// backing surface grows and shrinks continuously with the visible panel.
+pub fn resize_panel_frame(
+    app: &AppHandle,
+    width: f64,
+    height: f64,
+    pinned: bool,
+) -> tauri::Result<DockChanged> {
+    if pinned {
+        return resize_pinned_panel(app, width, height);
+    }
+
+    let fallback = DockChanged {
+        side: DockSide::Top,
+        along: 0.0,
+        preview: false,
+        x: 0.0,
+        y: 0.0,
+    };
+    let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) else {
+        return Ok(fallback);
+    };
+    let Some((work, scale, _)) = work_rect(&window)? else {
+        return Ok(fallback);
+    };
+    if !width.is_finite()
+        || !height.is_finite()
+        || width < docking::ICON_SIZE
+        || height < docking::ICON_SIZE
+    {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "invalid animated panel size",
+        )
+        .into());
+    }
+
+    let pos = live_logical_pos(app, &window, scale, None)?;
+    let current = window.outer_size()?.to_logical::<f64>(scale);
+    let win = Rect {
+        x: pos.x,
+        y: pos.y,
+        w: current.width,
+        h: current.height,
+    };
+    let side = docking::nearest_side(work, win);
+    let width = width.min(work.w.max(docking::ICON_SIZE));
+    let height = height.min(work.h.max(docking::ICON_SIZE));
+    let along = docking::along_axis(side, pos.x, pos.y);
+    let (x, y) = docking::docked_position(work, side, along, width, height);
+    platform::windows::set_window_bounds(&window, x, y, width, height)?;
+    remember_logical(app, x, y, scale);
+
+    Ok(DockChanged {
+        side,
+        along: docking::along_axis(side, x, y),
+        preview: false,
+        x,
+        y,
+    })
+}
+
 fn persist_dock(app: &AppHandle, key: &str, side: DockSide, along: f64) {
     if let Some(state) = app.try_state::<Mutex<PersistedSettings>>() {
         let mut settings = state.lock().expect("settings");
@@ -632,6 +753,7 @@ pub fn set_always_on_top(app: &AppHandle, on_top: bool) -> tauri::Result<()> {
         // `set_panel_pinned`, while preserving the overlay's regular topmost
         // visibility contract.
         window.set_always_on_top(overlay_native_topmost(false))?;
+        platform::macos::configure_overlay_window(&window)?;
     }
     if let Some(state) = app.try_state::<Mutex<PersistedSettings>>() {
         let mut settings = state.lock().expect("settings");
@@ -649,6 +771,7 @@ pub fn set_panel_pinned(app: &AppHandle, pinned: bool) -> tauri::Result<()> {
         return Ok(());
     };
     window.set_always_on_top(overlay_native_topmost(pinned))?;
+    platform::macos::configure_overlay_window(&window)?;
     Ok(())
 }
 
@@ -676,6 +799,112 @@ pub fn open_settings_window(app: &AppHandle) -> tauri::Result<()> {
     Ok(())
 }
 
+fn rect_fits(outer: Rect, x: f64, y: f64, width: f64, height: f64) -> bool {
+    let left = outer.x + PANEL_MENU_SCREEN_MARGIN;
+    let top = outer.y + PANEL_MENU_SCREEN_MARGIN;
+    let right = outer.x + outer.w - PANEL_MENU_SCREEN_MARGIN;
+    let bottom = outer.y + outer.h - PANEL_MENU_SCREEN_MARGIN;
+    x >= left && y >= top && x + width <= right && y + height <= bottom
+}
+
+fn clamp_panel_menu(outer: Rect, x: f64, y: f64, width: f64, height: f64) -> (f64, f64) {
+    let min_x = outer.x + PANEL_MENU_SCREEN_MARGIN;
+    let min_y = outer.y + PANEL_MENU_SCREEN_MARGIN;
+    let max_x = (outer.x + outer.w - width - PANEL_MENU_SCREEN_MARGIN).max(min_x);
+    let max_y = (outer.y + outer.h - height - PANEL_MENU_SCREEN_MARGIN).max(min_y);
+    (x.clamp(min_x, max_x), y.clamp(min_y, max_y))
+}
+
+/// Place the custom menu outside the panel whenever the monitor has room.
+/// Candidate order follows the dock edge so a top-pinned pill always opens
+/// downward instead of painting a native menu over itself.
+fn panel_menu_position(work: Rect, anchor: Rect, side: DockSide) -> (f64, f64) {
+    let centered_x = anchor.x + (anchor.w - PANEL_MENU_WIDTH) / 2.0;
+    let centered_y = anchor.y + (anchor.h - PANEL_MENU_HEIGHT) / 2.0;
+    let below = (centered_x, anchor.y + anchor.h + PANEL_MENU_GAP);
+    let above = (centered_x, anchor.y - PANEL_MENU_HEIGHT - PANEL_MENU_GAP);
+    let right = (anchor.x + anchor.w + PANEL_MENU_GAP, centered_y);
+    let left = (anchor.x - PANEL_MENU_WIDTH - PANEL_MENU_GAP, centered_y);
+    let candidates = match side {
+        DockSide::Top => [below, right, left, above],
+        DockSide::Left => [right, below, above, left],
+        DockSide::Right => [left, below, above, right],
+    };
+
+    for (x, y) in candidates {
+        if rect_fits(work, x, y, PANEL_MENU_WIDTH, PANEL_MENU_HEIGHT) {
+            return (x, y);
+        }
+    }
+
+    clamp_panel_menu(
+        work,
+        candidates[0].0,
+        candidates[0].1,
+        PANEL_MENU_WIDTH,
+        PANEL_MENU_HEIGHT,
+    )
+}
+
+pub fn open_panel_menu(app: &AppHandle) -> tauri::Result<()> {
+    let Some(main) = app.get_webview_window(MAIN_WINDOW_LABEL) else {
+        return Ok(());
+    };
+    let Some((work, scale, _)) = work_rect(&main)? else {
+        return Ok(());
+    };
+    let position = main.outer_position()?.to_logical::<f64>(scale);
+    let size = main.outer_size()?.to_logical::<f64>(scale);
+    let anchor = Rect {
+        x: position.x,
+        y: position.y,
+        w: size.width,
+        h: size.height,
+    };
+    let side = if platform::windows::pinned_top_guard_enabled() {
+        DockSide::Top
+    } else {
+        docking::nearest_side(work, anchor)
+    };
+    let (x, y) = panel_menu_position(work, anchor, side);
+
+    if let Some(existing) = app.get_webview_window(PANEL_MENU_WINDOW_LABEL) {
+        existing.set_position(LogicalPosition::new(x, y))?;
+        existing.show()?;
+        existing.set_focus()?;
+        let _ = app.emit("panel-menu-opened", ());
+        return Ok(());
+    }
+
+    let menu = tauri::WebviewWindowBuilder::new(
+        app,
+        PANEL_MENU_WINDOW_LABEL,
+        tauri::WebviewUrl::App("index.html#panel-menu".into()),
+    )
+    .title("SpringCat")
+    .position(x, y)
+    .inner_size(PANEL_MENU_WIDTH, PANEL_MENU_HEIGHT)
+    .resizable(false)
+    .decorations(false)
+    .transparent(true)
+    .additional_browser_args(WEBVIEW_BROWSER_ARGS)
+    .skip_taskbar(true)
+    .always_on_top(true)
+    .focused(true)
+    .visible(true)
+    .build()?;
+    menu.set_shadow(false)?;
+    let _ = menu.set_background_color(Some(Color(0, 0, 0, 0)));
+    Ok(())
+}
+
+pub fn hide_panel_menu(app: &AppHandle) -> tauri::Result<()> {
+    if let Some(menu) = app.get_webview_window(PANEL_MENU_WINDOW_LABEL) {
+        menu.hide()?;
+    }
+    Ok(())
+}
+
 pub fn expand_and_focus(app: &AppHandle) {
     let _ = show_and_focus(app);
     let pinned = platform::windows::pinned_top_guard_enabled();
@@ -691,8 +920,10 @@ pub fn expand_and_focus(app: &AppHandle) {
 
 #[cfg(test)]
 mod tests {
-    use super::{layout_from_size, overlay_native_topmost};
-    use crate::docking::PanelLayout;
+    use super::{
+        layout_from_size, overlay_native_topmost, panel_menu_position, pinned_top_uses_full_monitor,
+    };
+    use crate::docking::{PanelLayout, Rect};
     use crate::domain::DockSide;
 
     #[test]
@@ -707,5 +938,49 @@ mod tests {
     fn unpinned_overlay_remains_visible_above_regular_windows() {
         assert!(overlay_native_topmost(false));
         assert!(overlay_native_topmost(true));
+    }
+
+    #[cfg(any(target_os = "windows", target_os = "macos"))]
+    #[test]
+    fn desktop_bar_platforms_pin_against_the_physical_monitor_top() {
+        assert!(pinned_top_uses_full_monitor());
+    }
+
+    #[test]
+    fn panel_menu_opens_below_a_top_pinned_pill() {
+        let work = Rect {
+            x: 0.0,
+            y: 0.0,
+            w: 1920.0,
+            h: 1040.0,
+        };
+        let pill = Rect {
+            x: 700.0,
+            y: 0.0,
+            w: 520.0,
+            h: 48.0,
+        };
+        let (x, y) = panel_menu_position(work, pill, DockSide::Top);
+        assert_eq!(x, 818.0);
+        assert_eq!(y, 56.0);
+    }
+
+    #[test]
+    fn panel_menu_flips_inside_the_monitor_near_an_edge() {
+        let work = Rect {
+            x: 0.0,
+            y: 0.0,
+            w: 900.0,
+            h: 700.0,
+        };
+        let pill = Rect {
+            x: 856.0,
+            y: 250.0,
+            w: 44.0,
+            h: 44.0,
+        };
+        let (x, y) = panel_menu_position(work, pill, DockSide::Right);
+        assert!(x + 284.0 < pill.x);
+        assert!(y >= 6.0);
     }
 }

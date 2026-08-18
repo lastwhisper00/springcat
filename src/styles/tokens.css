@@ -17,9 +17,9 @@
   --sc-failed: #d98980;
   --sc-radius: 22px;
   --sc-ease: cubic-bezier(0.22, 1, 0.36, 1);
-  --sc-motion-strip: 220ms;
-  --sc-motion-travel: 240ms;
-  --sc-motion-panel: 180ms;
+  --sc-motion-strip: 280ms;
+  --sc-motion-travel: 380ms;
+  --sc-motion-panel: 420ms;
   --sc-motion-dock: 280ms;
 }
 

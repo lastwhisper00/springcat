@@ -88,7 +88,9 @@ export function formatClock(iso?: string): string {
   return date.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
 }
 
-export const ICON_SIZE = 44;
+// The visible orb is 36 px. Keep a 6 px gutter around it so the hover scale,
+// animated ring, and antialiasing stay inside the native transparent window.
+export const ICON_SIZE = 48;
 export const PEEK_SIZE = { width: 268, height: 48 };
 export const PINNED_PEEK_SIZE = { width: 360, height: 48 };
 export const DYNAMIC_ISLAND_PINNED_PEEK_SIZE = { width: 520, height: 48 };

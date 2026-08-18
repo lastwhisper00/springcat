@@ -1,7 +1,7 @@
 /** Logical-pixel layouts for the work panel. S02/S04 will consume these. */
 
 export const PANEL_SIZE = {
-  icon: { width: 44, height: 44 },
+  icon: { width: 48, height: 48 },
   peek: { width: 268, height: 48 },
   pinnedPeek: { width: 360, height: 48 },
   dynamicIslandPinnedPeek: { width: 520, height: 48 },

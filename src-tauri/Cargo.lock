@@ -3504,6 +3504,7 @@ dependencies = [
  "chrono",
  "dirs 6.0.0",
  "notify",
+ "objc2-app-kit",
  "rusqlite",
  "serde",
  "serde_json",
