@@ -2,8 +2,8 @@
   color-scheme: light dark;
   --sc-accent: AccentColor;
   --sc-accent-text: AccentColorText;
-  --sc-bg: color-mix(in srgb, Canvas 82%, transparent);
-  --sc-bg-strong: color-mix(in srgb, Canvas 92%, transparent);
+  --sc-bg: color-mix(in srgb, Canvas 90%, transparent);
+  --sc-bg-strong: color-mix(in srgb, Canvas 96%, transparent);
   --sc-border: color-mix(in srgb, CanvasText 14%, transparent);
   --sc-text: CanvasText;
   --sc-muted: color-mix(in srgb, CanvasText 62%, Canvas);

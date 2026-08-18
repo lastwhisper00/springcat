@@ -235,6 +235,9 @@
     --sc-step-panel: var(--sc-motion-panel);
     --sc-width-motion: var(--sc-step-strip);
     --sc-height-motion: var(--sc-step-panel);
+    --sc-pill-height: 42px;
+    --sc-pill-radius: 21px;
+    --sc-pill-inset: 5px;
   }
 
   .shell[data-synchronized-native-resize="true"] {
@@ -294,7 +297,7 @@
 
   .shell.open .ball-slot {
     position: absolute;
-    top: 8px;
+    top: var(--sc-pill-inset);
     left: 8px;
     display: grid;
     place-items: center;
@@ -376,6 +379,52 @@
       left var(--sc-step-strip) var(--sc-ease);
   }
 
+  /* Specular sheen: a white bloom on the top-left and bottom-right corners. */
+  .card::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    border-radius: inherit;
+    pointer-events: none;
+    opacity: 0;
+    background:
+      radial-gradient(ellipse 92% 86% at 4% -8%, rgb(255 255 255 / 52%), transparent 46%),
+      radial-gradient(ellipse 78% 72% at 98% 108%, rgb(255 255 255 / 24%), transparent 48%);
+    box-shadow:
+      inset 1px 1px 0 rgb(255 255 255 / 42%),
+      inset -1px -1px 0 rgb(255 255 255 / 16%);
+    transition: opacity 180ms ease-out;
+  }
+
+  /* 1px glass rim, brightest at the same two corners. */
+  .card::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 3;
+    border-radius: inherit;
+    pointer-events: none;
+    opacity: 0;
+    padding: 1px;
+    background: linear-gradient(
+      135deg,
+      rgb(255 255 255 / 68%) 0%,
+      rgb(255 255 255 / 0%) 28%,
+      rgb(255 255 255 / 0%) 72%,
+      rgb(255 255 255 / 34%) 100%
+    );
+    mask:
+      linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
+    mask-composite: exclude;
+    -webkit-mask:
+      linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    transition: opacity 180ms ease-out;
+  }
+
   .shell[data-ball="end"] .card {
     transform-origin: calc(100% - 24px) 24px;
   }
@@ -398,9 +447,24 @@
     opacity: 1;
     transform: scale(1);
     background-color: var(--sc-bg);
-    border-color: var(--sc-border);
+    background-image: linear-gradient(
+      165deg,
+      rgb(255 255 255 / 10%) 0%,
+      transparent 38%,
+      transparent 62%,
+      rgb(0 0 0 / 8%) 100%
+    );
+    border-color: color-mix(in srgb, white 16%, var(--sc-border));
     box-shadow: 0 16px 40px rgba(0, 0, 0, 0.38);
+    backdrop-filter: blur(18px) saturate(1.28);
     left: 0;
+  }
+
+  .shell[data-stage="strip"] .card::before,
+  .shell[data-stage="panel"] .card::before,
+  .shell[data-stage="strip"] .card::after,
+  .shell[data-stage="panel"] .card::after {
+    opacity: 1;
   }
 
   /* A pinned pill sits over window title bars while they are being dragged.
@@ -421,7 +485,7 @@
     clip-path: inset(0 calc(50% - 16px) round 16px);
     border-radius: 24px;
     background-color: var(--sc-bg);
-    border-color: var(--sc-border);
+    border-color: color-mix(in srgb, white 16%, var(--sc-border));
   }
 
   .shell.open[data-dock="top"][data-pinned="true"] .card {
@@ -433,17 +497,30 @@
     transform: scaleY(0.82);
   }
 
-  .shell.open[data-dock="top"][data-stage="strip"] .card,
-  .shell.open[data-dock="top"][data-stage="panel"] .card {
-    clip-path: inset(0 round 24px);
+  .shell.open[data-dock="top"][data-stage="strip"] .card {
+    clip-path: inset(0 round var(--sc-pill-radius));
+    border-radius: var(--sc-pill-radius);
     transform: scaleY(1);
   }
 
+  .shell.open[data-dock="top"][data-stage="panel"] .card {
+    clip-path: inset(0 round var(--sc-radius));
+    transform: scaleY(1);
+  }
+
+  .shell.open[data-dock="top"][data-stage="strip"] .card::before,
+  .shell.open[data-dock="top"][data-stage="panel"] .card::before,
+  .shell.open[data-dock="top"][data-stage="strip"] .card::after,
+  .shell.open[data-dock="top"][data-stage="panel"] .card::after {
+    opacity: 1;
+  }
+
   .shell[data-stage="strip"] .card {
-    height: 48px;
-    border-radius: 24px;
-    /* The native peek window is exactly the pill's bounds. An outer shadow is
-       clipped by that rectangular window and shows up as four faint corners. */
+    height: var(--sc-pill-height);
+    border-radius: var(--sc-pill-radius);
+    /* The native peek clip is a few pixels taller than the visible pill so the
+       orb ring is not shaved off. An outer shadow is still clipped by that
+       rectangular window and shows up as four faint corners. */
     box-shadow: none;
   }
 
@@ -480,12 +557,13 @@
 
   .chrome {
     position: relative;
+    z-index: 2;
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
     overflow: hidden;
-    min-height: 48px;
-    padding: 8px 12px;
+    min-height: var(--sc-pill-height);
+    padding: var(--sc-pill-inset) 10px;
   }
 
   .copy,
@@ -502,6 +580,8 @@
   }
 
   .drawer-slot {
+    position: relative;
+    z-index: 2;
     opacity: 0;
     transform: translateY(-7px) scaleY(0.985);
     transform-origin: top center;
@@ -611,7 +691,7 @@
   }
 
   .summary {
-    margin: 3px 0 0;
+    margin: 2px 0 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -631,7 +711,7 @@
     flex-shrink: 0;
     border: 0;
     border-radius: 999px;
-    padding: 6px 10px;
+    padding: 5px 10px;
     background: var(--sc-fill);
     color: var(--sc-text);
     font: inherit;
@@ -655,6 +735,8 @@
 
   @media (prefers-reduced-motion: reduce) {
     .card,
+    .card::before,
+    .card::after,
     .ball-slot,
     .copy,
     .source,

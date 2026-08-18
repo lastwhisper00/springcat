@@ -5,7 +5,7 @@ import type { DockSide, PanelLayout } from "$domain";
  *
  * Visual stages:
  *   icon  — only the ball
- *   strip — 48px chrome (the narrow bar)
+ *   strip — 42px chrome (the narrow bar)
  *   panel — full list
  *
  * Ball lanes:
