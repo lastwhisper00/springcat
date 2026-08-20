@@ -5,7 +5,7 @@
   import WorkPanel from "$components/work-panel/WorkPanel.svelte";
   import { shellSize } from "$components/work-panel/copy";
   import {
-    closePlan,
+    closeCapsulePlan,
     idleFrame,
     MOTION,
     openPlan,
@@ -51,6 +51,7 @@
     type DockChanged,
   } from "$services/tauri";
   import { blockMiddleButtonDefault } from "./pointer-guards";
+  import { resolveWindowKind } from "./window-kind";
   import {
     drawerIdleTarget,
     orbTargetLayout,
@@ -60,7 +61,12 @@
   } from "./orb-interaction";
 
   const DRAG_PX = 6;
-  const DRAWER_IDLE_MS = 2_000;
+  const DRAWER_IDLE_MS = 3_000;
+  // Hover-peek debounce: opening needs a short dwell so a fast mouse sweep
+  // across the orb does not flap the native window open; closing is immediate
+  // once the pointer actually leaves the window.
+  const HOVER_OPEN_MS = 140;
+  const isOverlayWindow = resolveWindowKind() === "overlay";
 
   interface PinnedPointerDrag {
     pointerId: number;
@@ -82,16 +88,17 @@
   let pinned = $state(false);
   let flow = $state<MotionFlow>("idle");
   let motionFrame = $state<MotionFrame>(idleFrame("collapsed"));
-  let busy = false;
-  let dynamicIslandResizeBusy = false;
-  let pinBusy = false;
-  let reanchorBusy = false;
+  let busy = $state(false);
+  let dynamicIslandResizeBusy = $state(false);
+  let pinBusy = $state(false);
+  let reanchorBusy = $state(false);
   let policyPending = false;
   let dragStarted = $state(false);
   let canToggle = false;
   let pointerToggleTarget: "orb" | "pill" | null = null;
   let hideTimer: ReturnType<typeof setTimeout> | undefined;
   let drawerIdleTimer: ReturnType<typeof setTimeout> | undefined;
+  let hoverOpenTimer: ReturnType<typeof setTimeout> | undefined;
   let hideKey: string | null = null;
   let hideDeadline = 0;
   let origin: { x: number; y: number } | null = null;
@@ -102,6 +109,16 @@
   let nextPinnedDragPosition: { x: number; y: number } | null = null;
   let pinnedDragPump: Promise<void> | null = null;
   let windowFocused = true;
+  // True while the collapsed orb is showing the peek pill only because the
+  // pointer is resting on it. While hover-peeking, the panel owes its shape to
+  // the hover, so clicks are interpreted from the collapsed state and the
+  // panel collapses again as soon as the pointer leaves.
+  let hoverPeeking = $state(false);
+  let pointerInsidePanel = $state(false);
+  // True while the pointer is inside the expanded drawer. The drawer never
+  // folds itself under an active cursor; it only folds after the pointer has
+  // left (or after keyboard/pointer activity elsewhere) for DRAWER_IDLE_MS.
+  let drawerHovered = $state(false);
 
   const muted = $derived(isMuted(settingsStore.value));
   // Pinning is a physical top-center mode. Keep the visual choreography tied
@@ -355,6 +372,28 @@
     lastPhysical = { x: final.x, y: final.y };
   }
 
+  /** The only peek -> collapsed implementation. Drawer closing never enters here. */
+  async function collapsePeekCapsule() {
+    if (layout !== "peek") {
+      throw new Error(`capsule collapse requires peek layout, received ${layout}`);
+    }
+
+    await playMotion("closing", closeCapsulePlan());
+    surfaceAnchorSide = visualDockSide;
+    settleLayout("collapsed");
+    userExpanded = false;
+    userPeeked = false;
+    // Paint the resting orb in a surface whose width already matches the
+    // final 48 px native clip. Keeping the old wide surface here makes the
+    // collapsed CSS resolve against that stale viewport on WebView2, so a
+    // side-docked window can clip a blank slice after contraction.
+    await nextPaint();
+    await prepareNativeLayout("collapsed");
+    await nextPaint();
+    await nextPaint();
+    await applyNativeLayout("collapsed");
+  }
+
   async function setLayout(next: PanelLayout, force = false) {
     if (dynamicIslandResizeBusy) {
       policyPending = true;
@@ -373,20 +412,17 @@
         return;
       }
       if (next === "collapsed" && layout !== "collapsed") {
-        await playMotion("closing", closePlan(layout));
-        surfaceAnchorSide = visualDockSide;
-        settleLayout("collapsed");
-        userExpanded = false;
-        userPeeked = false;
-        // Paint the resting orb in a surface whose width already matches the
-        // final 48 px native clip. Keeping the old wide surface here makes the
-        // collapsed CSS resolve against that stale viewport on WebView2, so a
-        // side-docked window can clip a blank slice after contraction.
-        await nextPaint();
-        await prepareNativeLayout("collapsed");
-        await nextPaint();
-        await nextPaint();
-        await applyNativeLayout("collapsed");
+        // Every full close converges through the same two state transitions:
+        // expanded -> peek folds/resizes the drawer first; only a real peek
+        // window is allowed to run the capsule -> orb animation afterward.
+        if (layout === "expanded") {
+          await animateDrawerWindow(false);
+          // `animateDrawerWindow` clears synchronized-resize in its finally
+          // block. Give the real peek surface one committed frame before the
+          // capsule timeline starts, so the two phases cannot visually merge.
+          await nextPaint();
+        }
+        await collapsePeekCapsule();
         return;
       }
       if (layout === "collapsed" && next !== "collapsed") {
@@ -444,10 +480,13 @@
 
   function armDrawerIdleTimer() {
     clearDrawerIdleTimer();
+    if (drawerHovered) return;
     if (layout !== "expanded" || flow !== "idle") return;
     drawerIdleTimer = setTimeout(() => {
       drawerIdleTimer = undefined;
-      if (layout === "expanded" && flow === "idle") void foldDrawerToPill();
+      if (layout === "expanded" && flow === "idle" && !drawerHovered) {
+        void foldDrawerToPill();
+      }
     }, DRAWER_IDLE_MS);
   }
 
@@ -462,13 +501,72 @@
   function noteDrawerActivity(event: Event) {
     if (layout !== "expanded") return;
     const target = event.target as HTMLElement | null;
-    if (target?.closest(".drawer")) armDrawerIdleTimer();
+    // Pointer/keyboard activity inside the drawer counts as engagement: it
+    // keeps the drawer open under the cursor and restarts the fold timer.
+    drawerHovered = target?.closest(".drawer") ? true : false;
+    armDrawerIdleTimer();
+  }
+
+  function onDrawerHoverChange(hovered: boolean) {
+    drawerHovered = hovered;
+    if (hovered) clearDrawerIdleTimer();
+    else armDrawerIdleTimer();
   }
 
   $effect(() => {
     const drawerOpen = layout === "expanded" && flow === "idle";
     if (drawerOpen) armDrawerIdleTimer();
-    else clearDrawerIdleTimer();
+    else {
+      drawerHovered = false;
+      clearDrawerIdleTimer();
+    }
+  });
+
+  function clearHoverTimers() {
+    if (hoverOpenTimer) {
+      clearTimeout(hoverOpenTimer);
+      hoverOpenTimer = undefined;
+    }
+  }
+
+  function cancelHoverPeek() {
+    clearHoverTimers();
+    hoverPeeking = false;
+  }
+
+  function onPanelPointerEnter(event: PointerEvent) {
+    pointerInsidePanel = true;
+    if (event.pointerType !== "mouse") return;
+    if (hoverPeeking || busy || dynamicIslandResizeBusy || pinBusy || reanchorBusy || dragStarted) return;
+    if (layout !== "collapsed" || flow !== "idle") return;
+    if (taskStore.surface.kind === "idle") return;
+    clearHoverTimers();
+    hoverOpenTimer = setTimeout(() => {
+      hoverOpenTimer = undefined;
+      if (busy || dynamicIslandResizeBusy || pinBusy || reanchorBusy || dragStarted) return;
+      if (layout !== "collapsed" || flow !== "idle") return;
+      if (taskStore.surface.kind === "idle") return;
+      hoverPeeking = true;
+      void setLayout("peek");
+    }, HOVER_OPEN_MS);
+  }
+
+  function onPanelPointerLeave() {
+    pointerInsidePanel = false;
+  }
+
+  // Collapse the hover-peek as soon as the pointer is out of the window and
+  // the panel has settled — including when the pointer left mid-motion.
+  $effect(() => {
+    if (hoverPeeking && layout !== "peek") {
+      hoverPeeking = false;
+      return;
+    }
+    if (flow !== "idle" || !hoverPeeking || pointerInsidePanel) return;
+    if (busy || dynamicIslandResizeBusy || pinBusy || reanchorBusy || dragStarted) return;
+    if (userExpanded || userPeeked) return;
+    hoverPeeking = false;
+    if (layout === "peek") void setLayout("collapsed");
   });
 
   function autoHideWindow(): { shouldPeek: boolean; remainingMs: number | null } {
@@ -501,6 +599,9 @@
       return;
     }
     policyPending = false;
+    // A hover-peek is a user-initiated, transient look: let it stay open for
+    // as long as the pointer is on it instead of auto-hiding underneath it.
+    if (hoverPeeking && layout === "peek") return;
     if (userExpanded && layout === "expanded") return;
     if (userPeeked && layout === "peek") return;
     if (suppressUserCollapsedAutoOpen(layout, userCollapsedPill)) return;
@@ -517,7 +618,7 @@
     if (remainingMs !== null && remainingMs > 0) {
       hideTimer = setTimeout(() => {
         hideTimer = undefined;
-        if (!userExpanded && !userPeeked && layout === "peek") {
+        if (!userExpanded && !userPeeked && !hoverPeeking && layout === "peek") {
           void setLayout("collapsed");
         }
       }, remainingMs);
@@ -703,7 +804,11 @@
   function toggleFromOrb() {
     if (busy || dynamicIslandResizeBusy) return;
     clearTimers();
-    const next = orbTargetLayout(layout);
+    clearHoverTimers();
+    // The orb is the master toggle. A click while hover-peeking must expand
+    // (the user's baseline was "collapsed"), never collapse the peek again.
+    const next = orbTargetLayout(hoverPeeking ? "collapsed" : layout);
+    hoverPeeking = false;
     userCollapsedPill = next === "collapsed";
     userExpanded = next === "expanded";
     userPeeked = false;
@@ -741,6 +846,7 @@
 
   function onPointerDown(event: PointerEvent) {
     noteDrawerActivity(event);
+    clearHoverTimers();
     if (event.button !== 0) return;
     const target = event.target as HTMLElement | null;
     if (target?.closest("button.action, .drawer, .hit")) {
@@ -787,6 +893,7 @@
     canToggle = false;
     pointerToggleTarget = null;
     snapPreview = true;
+    cancelHoverPeek();
     if (pinnedPointerDrag) {
       movePinnedWithPointer(event, pinnedPointerDrag);
       return;
@@ -905,6 +1012,7 @@
   }
 
   onMount(() => {
+    if (!isOverlayWindow) return;
     document.documentElement.classList.add("overlay");
     // The Windows WebView also disables Blink's native autoscroll at startup.
     // Keep this platform-neutral guard for WKWebView and auxiliary-link actions.
@@ -981,6 +1089,7 @@
       document.documentElement.classList.remove("overlay");
       clearTimers();
       clearDrawerIdleTimer();
+      clearHoverTimers();
       window.removeEventListener("keydown", onKey);
       window.removeEventListener("pointerdown", blockMiddleButtonDefault, true);
       window.removeEventListener("mousedown", blockMiddleButtonDefault, true);
@@ -997,17 +1106,21 @@
   });
 </script>
 
+{#if isOverlayWindow}
 <main
   class="overlay-root"
   onpointerdowncapture={noteDrawerActivity}
   onpointerdown={onPointerDown}
   onpointermove={onPointerMove}
   onpointerup={onPointerUp}
+  onpointerenter={onPanelPointerEnter}
+  onpointerleave={onPanelPointerLeave}
   onpointercancel={() => {
     origin = null;
     canToggle = false;
     pointerToggleTarget = null;
     dragStarted = false;
+    cancelHoverPeek();
     void releasePinnedPointer();
   }}
   onwheel={noteDrawerActivity}
@@ -1027,12 +1140,14 @@
     {motionFrame}
     sideVariant="strip"
     fillWindow
+    onhoverchange={onDrawerHoverChange}
     ondblclick={onDoubleClick}
     oncontextmenu={onContextMenu}
     onaction={onAction}
     ontaskopen={onTaskOpen}
   />
 </main>
+{/if}
 
 <style>
   .overlay-root {

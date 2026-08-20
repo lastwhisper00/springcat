@@ -20,9 +20,13 @@ pub const MAIN_WINDOW_LABEL: &str = "main";
 pub const SETTINGS_WINDOW_LABEL: &str = "settings";
 pub const PANEL_MENU_WINDOW_LABEL: &str = "panel-menu";
 const WEBVIEW_BROWSER_ARGS: &str = "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --disable-blink-features=MiddleClickAutoscroll";
+#[cfg(test)]
 const PANEL_MENU_WIDTH: f64 = 284.0;
-const PANEL_MENU_HEIGHT: f64 = 366.0;
+#[cfg(test)]
+const PANEL_MENU_HEIGHT: f64 = 356.0;
+#[cfg(test)]
 const PANEL_MENU_GAP: f64 = 8.0;
+#[cfg(test)]
 const PANEL_MENU_SCREEN_MARGIN: f64 = 6.0;
 
 /// The persisted pin flag controls the overlay's placement and pinned layout,
@@ -799,6 +803,7 @@ pub fn open_settings_window(app: &AppHandle) -> tauri::Result<()> {
     Ok(())
 }
 
+#[cfg(test)]
 fn rect_fits(outer: Rect, x: f64, y: f64, width: f64, height: f64) -> bool {
     let left = outer.x + PANEL_MENU_SCREEN_MARGIN;
     let top = outer.y + PANEL_MENU_SCREEN_MARGIN;
@@ -807,6 +812,7 @@ fn rect_fits(outer: Rect, x: f64, y: f64, width: f64, height: f64) -> bool {
     x >= left && y >= top && x + width <= right && y + height <= bottom
 }
 
+#[cfg(test)]
 fn clamp_panel_menu(outer: Rect, x: f64, y: f64, width: f64, height: f64) -> (f64, f64) {
     let min_x = outer.x + PANEL_MENU_SCREEN_MARGIN;
     let min_y = outer.y + PANEL_MENU_SCREEN_MARGIN;
@@ -818,6 +824,7 @@ fn clamp_panel_menu(outer: Rect, x: f64, y: f64, width: f64, height: f64) -> (f6
 /// Place the custom menu outside the panel whenever the monitor has room.
 /// Candidate order follows the dock edge so a top-pinned pill always opens
 /// downward instead of painting a native menu over itself.
+#[cfg(test)]
 fn panel_menu_position(work: Rect, anchor: Rect, side: DockSide) -> (f64, f64) {
     let centered_x = anchor.x + (anchor.w - PANEL_MENU_WIDTH) / 2.0;
     let centered_y = anchor.y + (anchor.h - PANEL_MENU_HEIGHT) / 2.0;
@@ -846,61 +853,9 @@ fn panel_menu_position(work: Rect, anchor: Rect, side: DockSide) -> (f64, f64) {
     )
 }
 
-pub fn open_panel_menu(app: &AppHandle) -> tauri::Result<()> {
-    let Some(main) = app.get_webview_window(MAIN_WINDOW_LABEL) else {
-        return Ok(());
-    };
-    let Some((work, scale, _)) = work_rect(&main)? else {
-        return Ok(());
-    };
-    let position = main.outer_position()?.to_logical::<f64>(scale);
-    let size = main.outer_size()?.to_logical::<f64>(scale);
-    let anchor = Rect {
-        x: position.x,
-        y: position.y,
-        w: size.width,
-        h: size.height,
-    };
-    let side = if platform::windows::pinned_top_guard_enabled() {
-        DockSide::Top
-    } else {
-        docking::nearest_side(work, anchor)
-    };
-    let (x, y) = panel_menu_position(work, anchor, side);
-
-    if let Some(existing) = app.get_webview_window(PANEL_MENU_WINDOW_LABEL) {
-        existing.set_position(LogicalPosition::new(x, y))?;
-        existing.show()?;
-        existing.set_focus()?;
-        let _ = app.emit("panel-menu-opened", ());
-        return Ok(());
-    }
-
-    let menu = tauri::WebviewWindowBuilder::new(
-        app,
-        PANEL_MENU_WINDOW_LABEL,
-        tauri::WebviewUrl::App("index.html#panel-menu".into()),
-    )
-    .title("SpringCat")
-    .position(x, y)
-    .inner_size(PANEL_MENU_WIDTH, PANEL_MENU_HEIGHT)
-    .resizable(false)
-    .decorations(false)
-    .transparent(true)
-    .additional_browser_args(WEBVIEW_BROWSER_ARGS)
-    .skip_taskbar(true)
-    .always_on_top(true)
-    .focused(true)
-    .visible(true)
-    .build()?;
-    menu.set_shadow(false)?;
-    let _ = menu.set_background_color(Some(Color(0, 0, 0, 0)));
-    Ok(())
-}
-
 pub fn hide_panel_menu(app: &AppHandle) -> tauri::Result<()> {
     if let Some(menu) = app.get_webview_window(PANEL_MENU_WINDOW_LABEL) {
-        menu.hide()?;
+        let _ = menu.destroy();
     }
     Ok(())
 }

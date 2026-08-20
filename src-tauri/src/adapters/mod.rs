@@ -10,6 +10,7 @@ use crate::settings_store::now_rfc3339;
 
 pub mod codex;
 pub mod cursor;
+pub mod dsh;
 pub mod gemini_cli;
 pub mod grok_cli;
 pub mod marvis;
@@ -23,6 +24,7 @@ pub fn adapt(source: TaskSource, vendor: &Value, envelope: &Value) -> Result<Tas
         TaskSource::GrokCli => grok_cli::from_vendor(vendor, envelope),
         TaskSource::WorkBuddy => workbuddy::from_vendor(vendor, envelope),
         TaskSource::Marvis => marvis::from_vendor(vendor, envelope),
+        TaskSource::DshDesktop => dsh::from_vendor(vendor, envelope),
         TaskSource::Unknown => Err("unknown source".to_string()),
     }));
     match result {

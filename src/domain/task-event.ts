@@ -7,6 +7,7 @@ export type TaskSource =
   | "gemini-cli"
   | "workbuddy"
   | "marvis"
+  | "dsh-desktop"
   | "unknown";
 
 export type TaskEventType =
@@ -42,6 +43,7 @@ const TASK_SOURCES: ReadonlySet<string> = new Set([
   "gemini-cli",
   "workbuddy",
   "marvis",
+  "dsh-desktop",
   "unknown",
 ]);
 

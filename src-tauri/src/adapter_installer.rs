@@ -30,6 +30,9 @@ pub fn status(source: TaskSource) -> Result<AdapterInstallStatus, String> {
     if source == TaskSource::Marvis {
         return marvis_status();
     }
+    if source == TaskSource::DshDesktop {
+        return dsh_status();
+    }
     ensure_supported(source)?;
     let config_path = config_path(source)?;
     let hooks_installed = if config_path.is_file() {
@@ -71,6 +74,9 @@ pub fn install(app: &tauri::AppHandle, source: TaskSource) -> Result<AdapterInst
     if source == TaskSource::Marvis {
         return marvis_status();
     }
+    if source == TaskSource::DshDesktop {
+        return dsh_status();
+    }
     ensure_supported(source)?;
     let bridge = ensure_bridge(app)?;
     let config = config_path(source)?;
@@ -84,6 +90,9 @@ pub fn uninstall(source: TaskSource) -> Result<AdapterInstallStatus, String> {
     }
     if source == TaskSource::Marvis {
         return marvis_status();
+    }
+    if source == TaskSource::DshDesktop {
+        return dsh_status();
     }
     ensure_supported(source)?;
     let config = config_path(source)?;
@@ -114,7 +123,8 @@ fn ensure_supported(source: TaskSource) -> Result<(), String> {
         | TaskSource::GrokCli
         | TaskSource::GeminiCli
         | TaskSource::WorkBuddy
-        | TaskSource::Marvis => Ok(()),
+        | TaskSource::Marvis
+        | TaskSource::DshDesktop => Ok(()),
         _ => Err("这个适配器暂不支持自动安装".to_string()),
     }
 }
@@ -155,6 +165,24 @@ fn marvis_status() -> Result<AdapterInstallStatus, String> {
     })
 }
 
+fn dsh_status() -> Result<AdapterInstallStatus, String> {
+    let cache =
+        crate::dsh_monitor::cache_path().ok_or_else(|| "无法定位用户数据目录".to_string())?;
+    let installed = cache.is_file();
+    Ok(AdapterInstallStatus {
+        source: "dsh-desktop".to_string(),
+        installed,
+        config_path: cache.display().to_string(),
+        bridge_installed: true,
+        requires_trust: false,
+        message: if installed {
+            "已检测到 DSH Desktop 本地会话，SpringCat 会只读监听任务生命周期。".to_string()
+        } else {
+            "尚未检测到 DSH Desktop 会话缓存；请先启动 DSH Desktop 并发起一次对话。".to_string()
+        },
+    })
+}
+
 fn source_key(source: TaskSource) -> &'static str {
     match source {
         TaskSource::Codex => "codex",
@@ -163,6 +191,7 @@ fn source_key(source: TaskSource) -> &'static str {
         TaskSource::GeminiCli => "gemini-cli",
         TaskSource::WorkBuddy => "workbuddy",
         TaskSource::Marvis => "marvis",
+        TaskSource::DshDesktop => "dsh-desktop",
         TaskSource::Unknown => "unknown",
     }
 }

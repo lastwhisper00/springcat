@@ -194,6 +194,7 @@ fn adapter_enabled(app: &AppHandle, source: TaskSource) -> bool {
         TaskSource::GeminiCli => toggles.gemini_cli,
         TaskSource::WorkBuddy => toggles.work_buddy,
         TaskSource::Marvis => toggles.marvis,
+        TaskSource::DshDesktop => toggles.dsh_desktop,
         TaskSource::Unknown => true,
     }
 }
@@ -262,7 +263,10 @@ pub fn emit_adapter_test(app: &AppHandle, source: TaskSource) -> Result<AdapterT
     }
     drain_inbox(app);
 
-    let message = if matches!(source, TaskSource::WorkBuddy | TaskSource::Marvis) {
+    let message = if matches!(
+        source,
+        TaskSource::WorkBuddy | TaskSource::Marvis | TaskSource::DshDesktop
+    ) {
         format!(
             "已生成 {} 测试完成提醒，请查看桌面圆球。",
             source_label(source)
@@ -287,6 +291,7 @@ fn test_payload(source: TaskSource) -> serde_json::Value {
         TaskSource::GeminiCli => "gemini-cli",
         TaskSource::WorkBuddy => "workbuddy",
         TaskSource::Marvis => "marvis",
+        TaskSource::DshDesktop => "dsh-desktop",
         TaskSource::Unknown => "unknown",
     };
     let id = uuid::Uuid::new_v4().to_string();
@@ -312,7 +317,7 @@ fn spawn_bridge_emit(source: TaskSource, payload: &serde_json::Value) -> bool {
         TaskSource::Cursor => "cursor",
         TaskSource::GrokCli => "grok-cli",
         TaskSource::GeminiCli => "gemini-cli",
-        TaskSource::WorkBuddy | TaskSource::Marvis => return false,
+        TaskSource::WorkBuddy | TaskSource::Marvis | TaskSource::DshDesktop => return false,
         TaskSource::Unknown => return false,
     };
     let Ok(mut child) = std::process::Command::new(&bridge)
@@ -341,6 +346,7 @@ fn source_label(source: TaskSource) -> &'static str {
     match source {
         TaskSource::WorkBuddy => "WorkBuddy",
         TaskSource::Marvis => "Marvis",
+        TaskSource::DshDesktop => "DSH",
         _ => "AI 工具",
     }
 }

@@ -7,6 +7,7 @@ export const SOURCE_LABEL: Record<TaskSource, string> = {
   "gemini-cli": "Gemini CLI",
   workbuddy: "WorkBuddy",
   marvis: "Marvis",
+  "dsh-desktop": "DSH",
   unknown: "未知",
 };
 

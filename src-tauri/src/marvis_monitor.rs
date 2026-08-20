@@ -21,7 +21,7 @@ use tauri::{AppHandle, Emitter, Manager};
 use crate::domain::{TaskEvent, TaskEventType, TaskSource};
 use crate::event_collector::{self, CollectorState};
 use crate::repository::UsageRecord;
-use crate::settings_store::PersistedSettings;
+use crate::settings_store::{occurred_at_rfc3339, PersistedSettings};
 
 const SYNC_DEBOUNCE: Duration = Duration::from_millis(250);
 const SETUP_CHECK_INTERVAL: Duration = Duration::from_secs(1);
@@ -328,6 +328,7 @@ fn bootstrap(
     for row in rows {
         let (event_id, conversation_id, response_id, timestamp) =
             row.map_err(|err| err.to_string())?;
+        let timestamp = occurred_at_rfc3339(&timestamp);
         let title =
             title_for_response(conn, &response_id).unwrap_or_else(|| "Marvis 任务".to_string());
         cursor.active.insert(
@@ -496,7 +497,7 @@ fn read_vendor_events(
                 response_id: row.get(3)?,
                 event_type: row.get(4)?,
                 data: row.get(5)?,
-                timestamp: row.get(6)?,
+                timestamp: occurred_at_rfc3339(&row.get::<_, String>(6)?),
             })
         })
         .map_err(|err| err.to_string())?;
@@ -630,7 +631,7 @@ fn read_approval_states(conn: &Connection) -> Result<Vec<ApprovalState>, String>
                 approval_id: row.get(0)?,
                 conversation_id: row.get(1)?,
                 status: row.get(2)?,
-                occurred_at: row.get(3)?,
+                occurred_at: occurred_at_rfc3339(&row.get::<_, String>(3)?),
             })
         })
         .map_err(|err| err.to_string())?;
@@ -713,7 +714,7 @@ fn read_usage_records(
             external_event_id,
             session_id: Some(conversation_id),
             model: (!model.trim().is_empty()).then_some(model),
-            occurred_at,
+            occurred_at: occurred_at_rfc3339(&occurred_at),
             local_date: usage_date,
             input_tokens: input_tokens.max(0),
             cached_input_tokens: cached_input_tokens.max(0),
@@ -941,6 +942,11 @@ mod tests {
         assert_eq!(records[0].cached_input_tokens, 40);
         assert_eq!(records[0].reasoning_tokens, 5);
         assert_eq!(records[0].total_tokens, 120);
+        assert!(
+            chrono::DateTime::parse_from_rfc3339(&records[0].occurred_at).is_ok(),
+            "Marvis usage timestamps must be UTC RFC3339, got {}",
+            records[0].occurred_at
+        );
         assert_eq!(cursor.last_usage_id, 7);
     }
 
@@ -969,6 +975,12 @@ mod tests {
         assert_eq!(started.len(), 1);
         assert_eq!(started[0].event_type, TaskEventType::Started);
         assert_eq!(started[0].title, "整理桌面文件");
+        assert!(
+            chrono::DateTime::parse_from_rfc3339(&started[0].occurred_at).is_ok(),
+            "Marvis timestamps must be UTC RFC3339, got {}",
+            started[0].occurred_at
+        );
+        assert!(started[0].occurred_at.ends_with('Z'));
 
         insert_event(
             &conn,

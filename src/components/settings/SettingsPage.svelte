@@ -30,6 +30,11 @@
   import ToolLogo from "$components/work-panel/ToolLogo.svelte";
   import brandLogo from "../../assets/branding/透明.png";
   import { ADAPTERS, bindPrompt } from "./adapter-prompts";
+  import Button from "./controls/Button.svelte";
+  import SelectField from "./controls/SelectField.svelte";
+  import SettingsCard from "./controls/SettingsCard.svelte";
+  import Toggle from "./controls/Toggle.svelte";
+  import ToggleRow from "./controls/ToggleRow.svelte";
   import UsageCalendar from "./UsageCalendar.svelte";
 
   type Tab = "general" | "adapters" | "usage";
@@ -67,6 +72,21 @@
       : [],
   );
 
+  type SelectOption = { value: string; label: string; disabled?: boolean };
+
+  const browserOptions = $derived<SelectOption[]>([
+    { value: "", label: `跟随系统（${browserInfo?.systemDefaultName ?? "检测中…"}）` },
+    ...(browserInfo?.browsers ?? []).map((browser) => ({
+      value: browser.path,
+      label: browser.name,
+    })),
+    ...(settings?.browserPath &&
+    browserInfo &&
+    !browserInfo.browsers.some((browser) => browser.path === settings?.browserPath)
+      ? [{ value: settings.browserPath, label: browserNameFromPath(settings.browserPath) }]
+      : []),
+  ]);
+
   async function patch(partial: Partial<ClientSettings>) {
     if (browserPreview && settings) {
       settings = {
@@ -89,7 +109,7 @@
   }
 
   function isPassiveSource(selected: AdapterSource): boolean {
-    return selected === "workbuddy" || selected === "marvis";
+    return selected === "workbuddy" || selected === "marvis" || selected === "dsh-desktop";
   }
 
   async function copyPrompt(selected: AdapterSource) {
@@ -214,6 +234,7 @@
         if (selected === "gemini-cli") adapters.geminiCli = true;
         if (selected === "workbuddy") adapters.workBuddy = true;
         if (selected === "marvis") adapters.marvis = true;
+        if (selected === "dsh-desktop") adapters.dshDesktop = true;
         settings = { ...settings, adapters };
       }
       return;
@@ -246,6 +267,7 @@
     if (selected === "gemini-cli") adapters.geminiCli = false;
     if (selected === "workbuddy") adapters.workBuddy = false;
     if (selected === "marvis") adapters.marvis = false;
+    if (selected === "dsh-desktop") adapters.dshDesktop = false;
     await patch({ adapters });
   }
 
@@ -260,7 +282,8 @@
     if (selected === "grok-cli") return settings.adapters.grokCli;
     if (selected === "gemini-cli") return settings.adapters.geminiCli;
     if (selected === "workbuddy") return settings.adapters.workBuddy;
-    return settings.adapters.marvis;
+    if (selected === "marvis") return settings.adapters.marvis;
+    return settings.adapters.dshDesktop;
   }
 
   async function removeSource(selected: AdapterSource) {
@@ -298,7 +321,9 @@
       ? "~/.workbuddy/projects"
       : selected === "marvis"
         ? "~/.marvis/database/data.db"
-      : selected === "grok-cli"
+        : selected === "dsh-desktop"
+          ? "~/dsh-desktop/harness/storages/session_projcache.json"
+          : selected === "grok-cli"
         ? "~/.grok/hooks/springcat.json"
         : selected === "gemini-cli"
           ? "~/.gemini/settings.json"
@@ -414,135 +439,122 @@
       <div class="page-scroll">
         <div class:wide={tab === "usage"} class="page-content">
           {#if tab === "general"}
-            <section class="settings-card">
-              <div class="section-title">
-                <span class="section-icon"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3.5 10s2.4-4 6.5-4 6.5 4 6.5 4-2.4 4-6.5 4-6.5-4-6.5-4Z" /><circle cx="10" cy="10" r="2" /></svg></span>
-                <div><h2>展示</h2><p>控制工作面板在桌面上的呈现方式。</p></div>
-              </div>
+            <SettingsCard icon="eye" title="展示" description="控制工作面板在桌面上的呈现方式。">
               <div class="field-list">
-                <label class="field-row">
-                  <span><strong>展示模式</strong><small>选择常驻桌面的主要形态</small></span>
-                  <span class="select-wrap">
-                    <select
-                      value={settings.presentationMode}
-                      onchange={(event) => void patch({ presentationMode: event.currentTarget.value === "pet" ? "pet" : "work" })}
-                    >
-                      <option value="work">工作面板</option>
-                      <option value="pet" disabled>宠物模式（即将推出）</option>
-                    </select>
-                  </span>
-                </label>
-                <label class="field-row">
-                  <span><strong>默认吸附边</strong><small>首次启动或没有位置记录时使用</small></span>
-                  <span class="select-wrap">
-                    <select value={settings.dockSide} onchange={(event) => void patch({ dockSide: event.currentTarget.value as DockSide })}>
-                      <option value="top">顶部</option>
-                      <option value="left">左侧</option>
-                      <option value="right">右侧</option>
-                    </select>
-                  </span>
-                </label>
+                <SelectField
+                  label="展示模式"
+                  hint="选择常驻桌面的主要形态"
+                  value={settings.presentationMode}
+                  options={[
+                    { value: "work", label: "工作面板" },
+                    { value: "pet", label: "宠物模式（即将推出）", disabled: true },
+                  ]}
+                  onchange={(value) => void patch({ presentationMode: value === "pet" ? "pet" : "work" })}
+                />
+                <SelectField
+                  label="默认吸附边"
+                  hint="首次启动或没有位置记录时使用"
+                  value={settings.dockSide}
+                  options={[
+                    { value: "top", label: "顶部" },
+                    { value: "left", label: "左侧" },
+                    { value: "right", label: "右侧" },
+                  ]}
+                  onchange={(value) => void patch({ dockSide: value as DockSide })}
+                />
               </div>
-            </section>
+            </SettingsCard>
 
-            <section class="settings-card">
-              <div class="section-title">
-                <span class="section-icon"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3v2m0 10v2M3 10h2m10 0h2M5 5l1.4 1.4M13.6 13.6 15 15m0-10-1.4 1.4M6.4 13.6 5 15" /><circle cx="10" cy="10" r="3.2" /></svg></span>
-                <div><h2>行为</h2><p>设置启动方式、提醒节奏和双击操作。</p></div>
-              </div>
+            <SettingsCard icon="activity" title="行为" description="设置启动方式、提醒节奏和双击操作。">
               <div class="field-list">
-                <label class="field-row switch-row">
-                  <span><strong>兼容灵动岛</strong><small>置顶时拉长胶囊，并将任务文字移到右侧以避开屏幕中央区域</small></span>
-                  <input class="switch" type="checkbox" checked={settings.dynamicIslandCompatible} disabled={saving} onchange={(event) => void patch({ dynamicIslandCompatible: event.currentTarget.checked })} />
-                </label>
-                <label class="field-row switch-row">
-                  <span><strong>顶部吸附</strong><small>吸附到屏幕顶部中央；关闭后可停靠边缘，悬浮球仍保持可见</small></span>
-                  <input class="switch" type="checkbox" checked={settings.alwaysOnTop} onchange={(event) => void patch({ alwaysOnTop: event.currentTarget.checked })} />
-                </label>
-                <label class="field-row switch-row">
-                  <span><strong>执行时自动置顶</strong><small>有对话正在执行时临时吸附到顶部，全部结束后恢复手动置顶状态</small></span>
-                  <input class="switch" type="checkbox" checked={settings.autoPinWhileRunning} onchange={(event) => void patch({ autoPinWhileRunning: event.currentTarget.checked })} />
-                </label>
-                <label class="field-row switch-row">
-                  <span><strong>开机启动</strong><small>登录系统后自动启动 SpringCat</small></span>
-                  <input class="switch" type="checkbox" checked={settings.autostart} onchange={(event) => void patch({ autostart: event.currentTarget.checked })} />
-                </label>
-                <label class="field-row switch-row">
-                  <span><strong>专注模式</strong><small>完成任务只保留未读点，减少打扰</small></span>
-                  <input class="switch" type="checkbox" checked={settings.focusMode} onchange={(event) => void patch({ focusMode: event.currentTarget.checked })} />
-                </label>
-                <label class="field-row">
-                  <span><strong>双击面板</strong><small>选择双击工作面板时执行的操作</small></span>
-                  <span class="select-wrap">
-                    <select value={settings.doubleClickAction} onchange={(event) => void patch({ doubleClickAction: event.currentTarget.value as DoubleClickAction })}>
-                      <option value="open-latest">打开最近待处理任务</option>
-                      <option value="none">无操作</option>
-                    </select>
-                  </span>
-                </label>
-                <div class="field-row">
-                  <span><strong>外部链接浏览器</strong><small>默认跟随 Windows；仅影响网页链接，不改变应用内设置窗口</small></span>
-                  <div class="browser-control">
-                    <span class="select-wrap">
-                      <select
-                        aria-label="外部链接浏览器"
-                        value={settings.browserPath ?? ""}
-                        onchange={(event) => void patch({ browserPath: event.currentTarget.value })}
-                      >
-                        <option value="">跟随系统（{browserInfo?.systemDefaultName ?? "检测中…"}）</option>
-                        {#each browserInfo?.browsers ?? [] as browser}
-                          <option value={browser.path}>{browser.name}</option>
-                        {/each}
-                        {#if settings.browserPath && !browserInfo?.browsers.some((browser) => browser.path === settings?.browserPath)}
-                          <option value={settings.browserPath}>{browserNameFromPath(settings.browserPath)}</option>
-                        {/if}
-                      </select>
-                    </span>
-                    <button class="secondary-button compact-button" type="button" disabled={saving || choosingBrowser} onclick={() => void chooseBrowserExecutable()}>
+                <ToggleRow
+                  label="兼容灵动岛"
+                  hint="置顶时拉长胶囊，并将任务文字移到右侧以避开屏幕中央区域"
+                  checked={settings.dynamicIslandCompatible}
+                  disabled={saving}
+                  onchange={(checked) => void patch({ dynamicIslandCompatible: checked })}
+                />
+                <ToggleRow
+                  label="顶部吸附"
+                  hint="吸附到屏幕顶部中央；关闭后可停靠边缘，悬浮球仍保持可见"
+                  checked={settings.alwaysOnTop}
+                  onchange={(checked) => void patch({ alwaysOnTop: checked })}
+                />
+                <ToggleRow
+                  label="执行时自动置顶"
+                  hint="有对话正在执行时临时吸附到顶部，全部结束后恢复手动置顶状态"
+                  checked={settings.autoPinWhileRunning}
+                  onchange={(checked) => void patch({ autoPinWhileRunning: checked })}
+                />
+                <ToggleRow
+                  label="开机启动"
+                  hint="登录系统后自动启动 SpringCat"
+                  checked={settings.autostart}
+                  onchange={(checked) => void patch({ autostart: checked })}
+                />
+                <ToggleRow
+                  label="专注模式"
+                  hint="完成任务只保留未读点，减少打扰"
+                  checked={settings.focusMode}
+                  onchange={(checked) => void patch({ focusMode: checked })}
+                />
+                <SelectField
+                  label="双击面板"
+                  hint="选择双击工作面板时执行的操作"
+                  value={settings.doubleClickAction}
+                  options={[
+                    { value: "open-latest", label: "打开最近待处理任务" },
+                    { value: "none", label: "无操作" },
+                  ]}
+                  onchange={(value) => void patch({ doubleClickAction: value as DoubleClickAction })}
+                />
+                <SelectField
+                  label="外部链接浏览器"
+                  hint="默认跟随 Windows；仅影响网页链接，不改变应用内设置窗口"
+                  ariaLabel="外部链接浏览器"
+                  value={settings.browserPath ?? ""}
+                  options={browserOptions}
+                  onchange={(value) => void patch({ browserPath: value })}
+                >
+                  {#snippet extra()}
+                    <Button compact disabled={saving || choosingBrowser} onclick={() => void chooseBrowserExecutable()}>
                       {choosingBrowser ? "选择中…" : "选择程序"}
-                    </button>
-                  </div>
-                </div>
-                <label class="field-row">
-                  <span><strong>任务历史保留</strong><small>Token 统计将使用独立的保留策略</small></span>
-                  <span class="select-wrap">
-                    <select value={String(settings.historyRetentionDays)} onchange={(event) => void patch({ historyRetentionDays: Number(event.currentTarget.value) })}>
-                      <option value="1">1 天</option>
-                      <option value="7">7 天</option>
-                      <option value="30">30 天</option>
-                      <option value="0">不保存</option>
-                    </select>
-                  </span>
-                </label>
+                    </Button>
+                  {/snippet}
+                </SelectField>
+                <SelectField
+                  label="任务历史保留"
+                  hint="Token 统计将使用独立的保留策略"
+                  value={String(settings.historyRetentionDays)}
+                  options={[
+                    { value: "1", label: "1 天" },
+                    { value: "7", label: "7 天" },
+                    { value: "30", label: "30 天" },
+                    { value: "0", label: "不保存" },
+                  ]}
+                  onchange={(value) => void patch({ historyRetentionDays: Number(value) })}
+                />
               </div>
-            </section>
+            </SettingsCard>
 
-            <section class="settings-card">
-              <div class="section-title">
-                <span class="section-icon"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3.5 6.5 10 3l6.5 3.5L10 10 3.5 6.5Z" /><path d="m3.5 10 6.5 3.5 6.5-3.5M3.5 13.5 10 17l6.5-3.5" /></svg></span>
-                <div><h2>本地存储</h2><p>管理任务历史、事件收件箱和日志的保存位置。</p></div>
-              </div>
+            <SettingsCard icon="layers" title="本地存储" description="管理任务历史、事件收件箱和日志的保存位置。">
               <div class="storage-control">
                 <input readonly value={storageDirectory} aria-label="缓存数据位置" />
-                <button class="secondary-button" type="button" disabled={saving || choosingStorage} onclick={() => void chooseStorageDirectory()}>
+                <Button disabled={saving || choosingStorage} onclick={() => void chooseStorageDirectory()}>
                   {choosingStorage ? "选择中…" : "选择目录"}
-                </button>
+                </Button>
               </div>
               <div class="card-actions">
-                <button class="text-button" type="button" disabled={saving || !storageInfo?.configuredDirectory} onclick={() => void applyStorageDirectory("")}>恢复默认位置</button>
+                <Button variant="text" disabled={saving || !storageInfo?.configuredDirectory} onclick={() => void applyStorageDirectory("")}>恢复默认位置</Button>
                 {#if storageInfo?.restartRequired}
-                  <button class="primary-button" type="button" disabled={saving} onclick={() => void restartApp()}>立即重启</button>
+                  <Button variant="primary" disabled={saving} onclick={() => void restartApp()}>立即重启</Button>
                 {/if}
               </div>
               {#if storageInfo?.restartRequired}<p class="note">当前仍在使用：{storageInfo.activeDirectory}</p>{/if}
               {#if storageNote}<p class="note">{storageNote}</p>{/if}
-            </section>
+            </SettingsCard>
           {:else if tab === "adapters"}
-            <section class="settings-card">
-              <div class="section-title">
-                <span class="section-icon"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 4v4m6-4v4M5 8h10v2a5 5 0 0 1-5 5 5 5 0 0 1-5-5V8Zm5 7v2" /></svg></span>
-                <div><h2>来源绑定</h2><p>打开开关会同时安装监听并启用来源。</p></div>
-              </div>
+            <SettingsCard icon="plug" title="来源绑定" description="打开开关会同时安装监听并启用来源。">
               <div class="adapter-list">
                 {#each ADAPTERS as adapter}
                   {@const installStatus = installStatuses[adapter.id] ?? null}
@@ -551,13 +563,11 @@
                       <span class="adapter-logo source-{adapter.id}"><ToolLogo source={adapter.id} /></span>
                       <span class="adapter-copy"><strong>{adapter.label}</strong><small>{adapter.detail}</small></span>
                       <span class:online={sourceInstalled(adapter.id)} class="adapter-status"><i></i>{sourceInstalled(adapter.id) ? isPassiveSource(adapter.id) ? "监听中" : "已绑定" : "未绑定"}</span>
-                      <input
-                        class="switch"
-                        type="checkbox"
-                        aria-label={`${sourceEnabled(adapter.id) ? "关闭" : "启用"}${adapter.label}监听`}
+                      <Toggle
                         checked={sourceEnabled(adapter.id)}
                         disabled={installing || removing}
-                        onchange={(event) => void setSourceEnabled(adapter.id, event.currentTarget.checked)}
+                        ariaLabel={`${sourceEnabled(adapter.id) ? "关闭" : "启用"}${adapter.label}监听`}
+                        onchange={(checked) => void setSourceEnabled(adapter.id, checked)}
                       />
                       <button
                         class="adapter-expand"
@@ -587,13 +597,13 @@
                           {#if adapter.id === "workbuddy" && installStatus?.installed}<p class="note">直接只读监听本地 JSONL，不会把完整对话、推理和工具输出写入 SpringCat。</p>{/if}
                           {#if adapter.id === "marvis" && installStatus?.installed}<p class="note">直接只读监听本地 SQLite/WAL，只保存生命周期、短标题、最终摘要和 Token 数字。</p>{/if}
                           <div class="card-actions">
-                            <button class="primary-button" type="button" disabled={installing || removing} onclick={() => void installSource(adapter.id)}>
+                            <Button variant="primary" disabled={installing || removing} onclick={() => void installSource(adapter.id)}>
                               {installing ? "安装中…" : isPassiveSource(adapter.id) ? installStatus?.installed ? "重新检测" : `检测 ${adapter.label}` : installStatus?.installed ? "修复安装" : "启用监听"}
-                            </button>
+                            </Button>
                             {#if installStatus?.installed && !isPassiveSource(adapter.id)}
-                              <button class="secondary-button danger" type="button" disabled={installing || removing} onclick={() => void removeSource(adapter.id)}>{removing ? "移除中…" : "移除监听"}</button>
+                              <Button variant="secondary" danger disabled={installing || removing} onclick={() => void removeSource(adapter.id)}>{removing ? "移除中…" : "移除监听"}</Button>
                             {/if}
-                            <button class="secondary-button" type="button" disabled={testing || !installStatus?.installed} onclick={() => void runTest(adapter.id)}>{testing ? "测试中…" : "测试连接"}</button>
+                            <Button disabled={testing || !installStatus?.installed} onclick={() => void runTest(adapter.id)}>{testing ? "测试中…" : "测试连接"}</Button>
                           </div>
                         </div>
                         {#if installStatus}
@@ -604,7 +614,7 @@
                             <summary>自动绑定失败？查看手动配置</summary>
                             <p class="note">复制配置并合并到上面的 hooks 路径。Cursor 保存后会自动重载，Grok 需要新建或重启会话。</p>
                             <textarea readonly rows="10">{bindPrompt(adapter.id, bind.bridgePath, bind.inboxDir)}</textarea>
-                            <button class="secondary-button" type="button" onclick={() => void copyPrompt(adapter.id)}>{copiedSource === adapter.id ? "已复制配置" : "复制手动配置"}</button>
+                            <Button onclick={() => void copyPrompt(adapter.id)}>{copiedSource === adapter.id ? "已复制配置" : "复制手动配置"}</Button>
                           </details>
                         {/if}
                         {#if bind}<p class="meta">inbox：{bind.inboxDir}</p>{/if}
@@ -614,7 +624,7 @@
                   </div>
                 {/each}
               </div>
-            </section>
+            </SettingsCard>
           {:else}
             <UsageCalendar boundSources={boundUsageSources} preview={browserPreview} />
           {/if}
@@ -622,8 +632,8 @@
           <footer class="page-footer">
             <span>所有更改都会自动保存</span>
             <div>
-              <button class="secondary-button" type="button" disabled={saving} onclick={() => window.close()}>关闭窗口</button>
-              <button class="text-button danger-text" type="button" onclick={() => browserPreview ? undefined : void quitApp()}>退出应用</button>
+              <Button disabled={saving} onclick={() => window.close()}>关闭窗口</Button>
+              <Button variant="text" danger onclick={() => (browserPreview ? undefined : void quitApp())}>退出应用</Button>
             </div>
           </footer>
         </div>
@@ -689,8 +699,6 @@
   nav button small,
   .sidebar-footer p,
   .sidebar-footer small,
-  .field-row > span:first-child,
-  .field-row small,
   .adapter-copy,
   .adapter-copy small {
     display: block;
@@ -891,176 +899,8 @@
     width: min(100%, 920px);
   }
 
-  .settings-card {
-    margin-bottom: 14px;
-    padding: 17px;
-    border: 1px solid var(--settings-border);
-    border-radius: 16px;
-    background: var(--settings-card);
-    box-shadow: var(--settings-card-shadow);
-  }
-
-  .section-title {
-    display: flex;
-    align-items: center;
-    gap: 11px;
-    padding-bottom: 13px;
-  }
-
-  .section-title.compact {
-    padding-bottom: 10px;
-  }
-
-  .section-icon {
-    display: grid;
-    width: 32px;
-    height: 32px;
-    flex: 0 0 32px;
-    place-items: center;
-    border-radius: 10px;
-    background: var(--settings-accent-soft);
-    color: var(--settings-accent);
-  }
-
-  .section-icon svg {
-    width: 17px;
-    fill: none;
-    stroke: currentColor;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-    stroke-width: 1.6;
-  }
-
-  h2 {
-    margin: 0;
-    font-size: 12px;
-  }
-
-  .section-title p {
-    margin: 3px 0 0;
-    color: var(--sc-muted);
-    font-size: 9px;
-  }
-
   .field-list {
     border-top: 1px solid var(--settings-border);
-  }
-
-  .field-row {
-    display: grid;
-    grid-template-columns: minmax(180px, 1fr) minmax(220px, 290px);
-    align-items: center;
-    gap: 20px;
-    min-height: 57px;
-    border-bottom: 1px solid var(--settings-border);
-  }
-
-  .field-row:last-child {
-    border-bottom: 0;
-  }
-
-  .field-row > span:first-child strong {
-    font-size: 10.5px;
-    font-weight: 620;
-  }
-
-  .field-row small {
-    margin-top: 3px;
-    color: var(--sc-muted);
-    font-size: 8.5px;
-  }
-
-  .select-wrap {
-    position: relative;
-    display: block;
-  }
-
-  .select-wrap::after {
-    content: "";
-    position: absolute;
-    top: 50%;
-    right: 13px;
-    width: 6px;
-    height: 6px;
-    border-right: 1.5px solid var(--sc-muted);
-    border-bottom: 1.5px solid var(--sc-muted);
-    pointer-events: none;
-    transform: translateY(-68%) rotate(45deg);
-  }
-
-  select,
-  input:not(.switch),
-  textarea {
-    width: 100%;
-    border: 1px solid var(--settings-border);
-    border-radius: 10px;
-    outline: none;
-    background: var(--settings-control);
-    color: var(--sc-text);
-    font: inherit;
-  }
-
-  select {
-    height: 36px;
-    padding: 0 36px 0 11px;
-    appearance: none;
-    cursor: pointer;
-  }
-
-  select:hover,
-  input:not(.switch):hover,
-  textarea:hover {
-    border-color: color-mix(in srgb, var(--settings-accent) 32%, var(--settings-border));
-  }
-
-  select:focus,
-  input:not(.switch):focus,
-  textarea:focus {
-    border-color: var(--settings-accent);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--settings-accent) 12%, transparent);
-  }
-
-  .switch-row {
-    grid-template-columns: minmax(180px, 1fr) auto;
-  }
-
-  .switch {
-    position: relative;
-    width: 34px;
-    height: 20px;
-    margin: 0;
-    border: 0;
-    border-radius: 99px;
-    outline: none;
-    appearance: none;
-    background: color-mix(in srgb, var(--sc-muted) 28%, transparent);
-    cursor: pointer;
-    transition: background 140ms ease;
-  }
-
-  .switch::after {
-    content: "";
-    position: absolute;
-    top: 3px;
-    left: 3px;
-    width: 14px;
-    height: 14px;
-    border-radius: 50%;
-    background: var(--settings-accent-text);
-    box-shadow: 0 1px 4px rgb(0 0 0 / 22%);
-    transition: transform 160ms var(--sc-ease);
-  }
-
-  .switch:checked {
-    background: var(--settings-accent);
-  }
-
-  .switch:checked::after {
-    transform: translateX(14px);
-  }
-
-  .switch:focus-visible {
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--settings-accent) 18%, transparent);
   }
 
   .storage-control {
@@ -1070,64 +910,25 @@
     padding-top: 4px;
   }
 
-  .browser-control {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 7px;
-  }
-
-  .compact-button {
-    white-space: nowrap;
-  }
-
   .storage-control input {
+    width: 100%;
     height: 36px;
     padding: 0 11px;
+    border: 1px solid var(--settings-border);
+    border-radius: 10px;
+    outline: none;
+    background: var(--settings-control);
     color: var(--sc-muted);
-  }
-
-  button,
-  textarea {
     font: inherit;
   }
 
-  .primary-button,
-  .secondary-button,
-  .text-button {
-    min-height: 34px;
-    padding: 7px 11px;
-    border-radius: 9px;
-    cursor: pointer;
+  .storage-control input:focus {
+    border-color: var(--settings-accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--settings-accent) 12%, transparent);
   }
 
-  .primary-button {
-    border: 1px solid var(--settings-accent);
-    background: var(--settings-accent);
-    color: var(--settings-accent-text);
-    box-shadow: 0 5px 14px color-mix(in srgb, var(--settings-accent) 18%, transparent);
-  }
-
-  .secondary-button {
-    border: 1px solid var(--settings-border);
-    background: var(--settings-control);
-    color: var(--sc-text);
-  }
-
-  .text-button {
-    border: 0;
-    background: transparent;
-    color: var(--settings-accent);
-  }
-
-  .primary-button:hover,
-  .secondary-button:hover {
-    filter: brightness(1.04);
-  }
-
-  button:disabled,
-  input:disabled {
-    cursor: not-allowed;
-    opacity: 0.48;
+  textarea {
+    font: inherit;
   }
 
   .card-actions,
@@ -1139,14 +940,6 @@
 
   .card-actions {
     margin-top: 12px;
-  }
-
-  .danger {
-    color: var(--sc-failed);
-  }
-
-  .danger-text {
-    color: var(--sc-failed);
   }
 
   .adapter-list {
@@ -1228,7 +1021,7 @@
   }
 
   .adapter-status.online {
-    color: #2f9b70;
+    color: var(--settings-online);
   }
 
   .adapter-expand {
@@ -1310,8 +1103,8 @@
   }
 
   .status-dot.online {
-    background: #42b883;
-    box-shadow: 0 0 0 4px color-mix(in srgb, #42b883 14%, transparent);
+    background: var(--settings-online);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--settings-online) 14%, transparent);
   }
 
   .note,
@@ -1409,16 +1202,6 @@
     .page-content {
       padding-left: 20px;
       padding-right: 20px;
-    }
-
-    .field-row {
-      grid-template-columns: 1fr;
-      gap: 8px;
-      padding: 10px 0;
-    }
-
-    .switch-row {
-      grid-template-columns: 1fr auto;
     }
 
     .adapter-row {

@@ -3,7 +3,7 @@
   import { deriveSurfaceState } from "$domain";
   import WorkPanel from "$components/work-panel/WorkPanel.svelte";
   import {
-    closePlan,
+    closeCapsulePlan,
     foldPlan,
     idleFrame,
     openPlan,
@@ -79,7 +79,12 @@
 
   async function playClose() {
     if (flow !== "idle" || layout === "collapsed") return;
-    await playMotion("closing", closePlan(layout));
+    if (layout === "expanded") {
+      await playMotion("folding", foldPlan());
+      settle("peek");
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    }
+    await playMotion("closing", closeCapsulePlan());
     settle("collapsed");
   }
 

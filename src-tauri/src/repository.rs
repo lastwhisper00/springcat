@@ -115,6 +115,91 @@ impl Repository {
                 ",
             )
             .map_err(|err| err.to_string())?;
+        self.normalize_naive_timestamps()?;
+        Ok(())
+    }
+
+    fn normalize_naive_timestamps(&self) -> Result<(), String> {
+        self.rewrite_marvis_task_times()?;
+        self.rewrite_single_time_column(
+            "SELECT event_id, occurred_at FROM events WHERE event_id LIKE 'marvis-monitor:%'",
+            "UPDATE events SET occurred_at = ?1 WHERE event_id = ?2",
+        )?;
+        self.rewrite_single_time_column(
+            "SELECT id, occurred_at FROM usage_records WHERE source = 'marvis'",
+            "UPDATE usage_records SET occurred_at = ?1 WHERE id = ?2",
+        )?;
+        Ok(())
+    }
+
+    fn rewrite_marvis_task_times(&self) -> Result<(), String> {
+        let mut stmt = self
+            .conn
+            .prepare(
+                "SELECT id, started_at, updated_at, completed_at FROM tasks WHERE source = 'marvis'",
+            )
+            .map_err(|err| err.to_string())?;
+        let rows = stmt
+            .query_map([], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, Option<String>>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, Option<String>>(3)?,
+                ))
+            })
+            .map_err(|err| err.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|err| err.to_string())?;
+        drop(stmt);
+
+        for (id, started_at, updated_at, completed_at) in rows {
+            let started = started_at
+                .as_deref()
+                .map(crate::settings_store::occurred_at_rfc3339);
+            let updated = crate::settings_store::occurred_at_rfc3339(&updated_at);
+            let completed = completed_at
+                .as_deref()
+                .map(crate::settings_store::occurred_at_rfc3339);
+            if started.as_deref() == started_at.as_deref()
+                && updated == updated_at
+                && completed.as_deref() == completed_at.as_deref()
+            {
+                continue;
+            }
+            self.conn
+                .execute(
+                    "UPDATE tasks SET started_at = ?1, updated_at = ?2, completed_at = ?3 WHERE id = ?4",
+                    params![started, updated, completed, id],
+                )
+                .map_err(|err| err.to_string())?;
+        }
+        Ok(())
+    }
+
+    fn rewrite_single_time_column(&self, select_sql: &str, update_sql: &str) -> Result<(), String> {
+        let mut stmt = self
+            .conn
+            .prepare(select_sql)
+            .map_err(|err| err.to_string())?;
+        let rows = stmt
+            .query_map([], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+            })
+            .map_err(|err| err.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|err| err.to_string())?;
+        drop(stmt);
+
+        for (id, occurred_at) in rows {
+            let next = crate::settings_store::occurred_at_rfc3339(&occurred_at);
+            if next == occurred_at {
+                continue;
+            }
+            self.conn
+                .execute(update_sql, params![next, id])
+                .map_err(|err| err.to_string())?;
+        }
         Ok(())
     }
 
@@ -552,6 +637,7 @@ fn source_sql(source: TaskSource) -> &'static str {
         TaskSource::GeminiCli => "gemini-cli",
         TaskSource::WorkBuddy => "workbuddy",
         TaskSource::Marvis => "marvis",
+        TaskSource::DshDesktop => "dsh-desktop",
         TaskSource::Unknown => "unknown",
     }
 }
@@ -564,6 +650,7 @@ fn source_from_sql(value: &str) -> TaskSource {
         "gemini-cli" => TaskSource::GeminiCli,
         "workbuddy" => TaskSource::WorkBuddy,
         "marvis" => TaskSource::Marvis,
+        "dsh-desktop" => TaskSource::DshDesktop,
         _ => TaskSource::Unknown,
     }
 }
@@ -792,5 +879,52 @@ mod tests {
         let repo = Repository::memory().unwrap();
         assert!(repo.list_usage_month("2026-13").is_err());
         assert!(repo.list_usage_month("August").is_err());
+    }
+
+    #[test]
+    fn rewrites_naive_marvis_timestamps_so_list_sorts_by_real_time() {
+        let repo = Repository::memory().unwrap();
+        let naive = "2026-08-18T17:38:00.000000";
+        let marvis_utc = crate::settings_store::occurred_at_rfc3339(naive);
+        let later = (chrono::DateTime::parse_from_rfc3339(&marvis_utc).unwrap()
+            + chrono::Duration::hours(2))
+        .with_timezone(&chrono::Utc)
+        .to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
+
+        repo.upsert_task(&TaskItem {
+            id: "marvis-1".into(),
+            source: TaskSource::Marvis,
+            title: "继续".into(),
+            summary: None,
+            status: TaskStatus::Completed,
+            started_at: Some(naive.into()),
+            updated_at: naive.into(),
+            completed_at: Some(naive.into()),
+            unread: false,
+            action: None,
+        })
+        .unwrap();
+        repo.upsert_task(&TaskItem {
+            id: "dsh-1".into(),
+            source: TaskSource::DshDesktop,
+            title: "UI交互优化建议咨询".into(),
+            summary: None,
+            status: TaskStatus::Completed,
+            started_at: Some(later.clone()),
+            updated_at: later.clone(),
+            completed_at: Some(later),
+            unread: false,
+            action: None,
+        })
+        .unwrap();
+
+        repo.normalize_naive_timestamps().unwrap();
+
+        let recent = repo.list_recent().unwrap();
+        assert_eq!(recent[0].id, "dsh-1");
+        assert_eq!(recent[1].id, "marvis-1");
+        assert_eq!(recent[1].updated_at, marvis_utc);
+        assert_eq!(recent[1].started_at.as_deref(), Some(marvis_utc.as_str()));
+        assert_eq!(recent[1].completed_at.as_deref(), Some(marvis_utc.as_str()));
     }
 }

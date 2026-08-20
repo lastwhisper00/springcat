@@ -1,11 +1,13 @@
 <script lang="ts">
-  let { name }: { name: "tasks" | "mute" | "focus" | "island" | "pin" | "pet" | "settings" | "quit" } = $props();
+  let { name }: { name: "tasks" | "read" | "mute" | "focus" | "island" | "pin" | "pet" | "settings" | "quit" } = $props();
 </script>
 
 <svg viewBox="0 0 24 24" aria-hidden="true">
   {#if name === "tasks"}
     <path d="M8 6h12M8 12h12M8 18h12" />
     <path d="m3.5 6 1 1 2-2M3.5 12l1 1 2-2M3.5 18l1 1 2-2" />
+  {:else if name === "read"}
+    <path d="M4 12.5 9.5 18 20 6.5" />
   {:else if name === "mute"}
     <path d="M11 5 7 9H4v6h3l4 4V5Z" />
     <path d="m16 9 5 5m0-5-5 5" />
@@ -31,11 +33,11 @@
 
 <style>
   svg {
-    width: 17px;
-    height: 17px;
+    width: 15px;
+    height: 15px;
     fill: none;
     stroke: currentColor;
-    stroke-width: 1.75;
+    stroke-width: 1.65;
     stroke-linecap: round;
     stroke-linejoin: round;
   }

@@ -15,6 +15,8 @@ pub enum TaskSource {
     WorkBuddy,
     #[serde(rename = "marvis")]
     Marvis,
+    #[serde(rename = "dsh-desktop")]
+    DshDesktop,
     Unknown,
 }
 

@@ -27,6 +27,7 @@
 | Gemini CLI | 官方全局 hooks | 暂不支持 |
 | WorkBuddy | 只读监听本地会话记录 | 暂不支持 |
 | Marvis | 只读监听本地 SQLite/WAL 生命周期 | 支持 |
+| DSH Desktop | 只读监听本地会话项目缓存 | 待接入 |
 
 打开 **设置 → AI 工具** 即可启用监听。SpringCat 会合并自己的 hook，不覆盖其他工具已有配置；详细行为和手动配置方式见 [适配器安装文档](./docs/adapters.md)。
 

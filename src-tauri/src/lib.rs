@@ -6,6 +6,7 @@ mod cursor_metadata;
 mod cursor_monitor;
 mod docking;
 mod domain;
+mod dsh_monitor;
 mod event_collector;
 mod logging;
 mod marvis_monitor;
@@ -398,8 +399,8 @@ fn open_settings(app: AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn popup_panel_menu(app: AppHandle) -> Result<(), String> {
-    windows::open_panel_menu(&app).map_err(|err| err.to_string())
+async fn popup_panel_menu(app: AppHandle) -> Result<(), String> {
+    tray::popup_context_menu(&app).map_err(|err| err.to_string())
 }
 
 #[tauri::command]
@@ -432,6 +433,7 @@ fn parse_adapter_source(source: &str) -> Result<TaskSource, String> {
         "gemini-cli" => Ok(TaskSource::GeminiCli),
         "workbuddy" => Ok(TaskSource::WorkBuddy),
         "marvis" => Ok(TaskSource::Marvis),
+        "dsh-desktop" => Ok(TaskSource::DshDesktop),
         _ => Err("unknown source".into()),
     }
 }
@@ -446,6 +448,7 @@ fn set_adapter_enabled(app: &AppHandle, source: TaskSource, enabled: bool) {
         TaskSource::GeminiCli => settings.app.adapters.gemini_cli = enabled,
         TaskSource::WorkBuddy => settings.app.adapters.work_buddy = enabled,
         TaskSource::Marvis => settings.app.adapters.marvis = enabled,
+        TaskSource::DshDesktop => settings.app.adapters.dsh_desktop = enabled,
         TaskSource::Unknown => {}
     }
     settings_store::save(&settings);
@@ -579,6 +582,7 @@ pub fn run() {
                 (settings.app.adapters.gemini_cli, TaskSource::GeminiCli),
                 (settings.app.adapters.work_buddy, TaskSource::WorkBuddy),
                 (settings.app.adapters.marvis, TaskSource::Marvis),
+                (settings.app.adapters.dsh_desktop, TaskSource::DshDesktop),
             ] {
                 if enabled {
                     if let Err(err) = adapter_installer::install(app.handle(), source) {
@@ -619,6 +623,9 @@ pub fn run() {
             }
             if let Err(err) = marvis_monitor::start(app.handle()) {
                 tracing::warn!(error = %err, "Marvis monitor failed to start");
+            }
+            if let Err(err) = dsh_monitor::start(app.handle()) {
+                tracing::warn!(error = %err, "DSH monitor failed to start");
             }
             if let Err(err) = usage_collector::start(app.handle()) {
                 tracing::warn!(error = %err, "token usage collector failed to start");

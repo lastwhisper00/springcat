@@ -2,6 +2,7 @@
   import type { TaskSource } from "$domain";
   import codexLogo from "../../assets/tool-logos/codex.svg";
   import cursorLogo from "../../assets/tool-logos/cursor.svg";
+  import dshLogo from "../../assets/tool-logos/dsh.svg";
   import geminiCliLogo from "../../assets/tool-logos/gemini-cli.svg";
   import grokLogo from "../../assets/tool-logos/grok.svg";
   import marvisLogo from "../../assets/tool-logos/marvis.svg";
@@ -14,6 +15,7 @@
     "grok-cli": grokLogo,
     marvis: marvisLogo,
     workbuddy: workBuddyLogo,
+    "dsh-desktop": dshLogo,
   };
 
   let { source }: { source: TaskSource | null } = $props();

@@ -8,6 +8,7 @@ export interface AdapterToggles {
   geminiCli: boolean;
   workBuddy: boolean;
   marvis: boolean;
+  dshDesktop: boolean;
 }
 
 export interface AppSettings {
@@ -57,6 +58,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     geminiCli: true,
     workBuddy: true,
     marvis: true,
+    dshDesktop: true,
   },
 };
 

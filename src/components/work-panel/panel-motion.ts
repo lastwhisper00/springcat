@@ -35,6 +35,7 @@ export interface MotionBeat {
 export const MOTION = {
   reveal: 70,
   strip: 280,
+  capsule: 420,
   travel: 380,
   panel: 420,
   dock: 280,
@@ -132,13 +133,12 @@ export function openPlan(target: PanelLayout): MotionBeat[] {
   ];
 }
 
-export function closePlan(from: PanelLayout): MotionBeat[] {
-  const first: MotionStage = from === "expanded" ? "panel" : "strip";
+/** Collapse only the capsule. Callers must fold an expanded drawer first. */
+export function closeCapsulePlan(): MotionBeat[] {
   return [
-    { frame: { stage: first, ball: "inner" }, hold: 0 },
-    { frame: { stage: "strip", ball: "inner" }, hold: first === "panel" ? MOTION.panel : 0 },
+    { frame: { stage: "strip", ball: "inner" }, hold: 0 },
     { frame: { stage: "strip", ball: "edge" }, hold: MOTION.travel },
-    { frame: { stage: "icon", ball: "edge" }, hold: MOTION.strip + MOTION.reveal },
+    { frame: { stage: "icon", ball: "edge" }, hold: MOTION.capsule },
   ];
 }
 

@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
-  closePlan,
+  closeCapsulePlan,
   edgeAlign,
   foldPlan,
   idleFrame,
   innerAlign,
+  MOTION,
   orbRollDirection,
   orbSize,
   orbSurfaceSide,
@@ -85,13 +86,14 @@ describe("plans", () => {
     expect(last).toEqual({ stage: "strip", ball: "inner" });
   });
 
-  it("closes as the reverse of open", () => {
-    expect(closePlan("expanded").map((beat) => beat.frame)).toEqual([
-      { stage: "panel", ball: "inner" },
+  it("closes only the capsule after the drawer has folded", () => {
+    const plan = closeCapsulePlan();
+    expect(plan.map((beat) => beat.frame)).toEqual([
       { stage: "strip", ball: "inner" },
       { stage: "strip", ball: "edge" },
       { stage: "icon", ball: "edge" },
     ]);
+    expect(plan.at(-1)?.hold).toBe(MOTION.capsule);
   });
 
   it("keeps a top orb centered while the pill grows, then slides it inward", () => {

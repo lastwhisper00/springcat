@@ -72,6 +72,7 @@ pub fn open_item(app: &AppHandle, task: &TaskItem) -> Result<(), String> {
         | TaskSource::GeminiCli
         | TaskSource::WorkBuddy
         | TaskSource::Marvis
+        | TaskSource::DshDesktop
         | TaskSource::Unknown => None,
     };
     if let Some(link) = generated_link {
@@ -185,6 +186,16 @@ fn open_source(app: &AppHandle, task: &TaskItem) -> Result<(), String> {
             let _ = app.opener().open_url("workbuddy://", None::<&str>);
         }
         TaskSource::Marvis => return open_marvis(app, task),
+        TaskSource::DshDesktop => {
+            if crate::platform::windows::focus_existing_process_window(
+                "DSH Desktop.exe",
+                "DSH Desktop",
+            ) {
+                return Ok(());
+            }
+            let _ = app.opener().open_url("dsh-desktop://", None::<&str>);
+            let _ = spawn("DSH Desktop");
+        }
         TaskSource::Unknown => {}
     }
     Ok(())

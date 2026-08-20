@@ -6,23 +6,61 @@
   let {
     tasks,
     ontaskopen,
+    onhoverchange,
   }: {
     tasks: TaskItem[];
     ontoggle?: (event: MouseEvent) => void;
     ontaskopen?: (task: TaskItem) => void;
+    onhoverchange?: (hovered: boolean) => void;
   } = $props();
 
   const visible = $derived(tasks.slice(0, 50));
+
+  let listEl = $state<HTMLElement | undefined>(undefined);
+  let scrolledDown = $state(false);
+  let canScrollDown = $state(false);
+
+  function updateScrollHint() {
+    const el = listEl;
+    if (!el) return;
+    scrolledDown = el.scrollTop > 4;
+    canScrollDown = el.scrollHeight - el.scrollTop - el.clientHeight > 4;
+  }
+
+  $effect(() => {
+    tasks;
+    const el = listEl;
+    if (!el) return;
+    updateScrollHint();
+    el.addEventListener("scroll", updateScrollHint, { passive: true });
+    const observer = new ResizeObserver(updateScrollHint);
+    observer.observe(el);
+    return () => {
+      el.removeEventListener("scroll", updateScrollHint);
+      observer.disconnect();
+    };
+  });
 </script>
 
-<div class="drawer" onpointerdown={(event) => event.stopPropagation()} role="presentation">
-  <ul class="list">
+<div
+  class="drawer"
+  class:show-top-fade={scrolledDown}
+  class:show-bottom-fade={canScrollDown}
+  onpointerdown={(event) => event.stopPropagation()}
+  onpointerenter={() => onhoverchange?.(true)}
+  onpointerleave={() => onhoverchange?.(false)}
+  role="presentation"
+>
+  <i class="fade top" aria-hidden="true"></i>
+  <i class="fade bottom" aria-hidden="true"></i>
+  <ul class="list" bind:this={listEl}>
     {#each visible as task (task.id)}
       <li class="row" data-status={task.status}>
         <button
           class="hit"
           type="button"
           aria-label={`打开任务：${task.title}`}
+          title={`打开任务：${task.title}`}
           onclick={(event) => {
             event.stopPropagation();
             ontaskopen?.(task);
@@ -49,6 +87,7 @@
               {formatClock(task.completedAt ?? task.updatedAt)}
             </time>
           </span>
+          <span class="chevron" aria-hidden="true">›</span>
         </button>
       </li>
     {:else}
@@ -154,7 +193,7 @@
 
   .hit {
     display: grid;
-    grid-template-columns: 22px minmax(0, 1fr) auto;
+    grid-template-columns: 22px minmax(0, 1fr) auto 16px;
     align-items: center;
     gap: 11px;
     width: 100%;
@@ -237,6 +276,63 @@
     align-items: flex-end;
     flex-direction: column;
     gap: 5px;
+  }
+
+  /* The chevron column is always reserved so rows do not shift when it fades
+     in; it only becomes visible as a "this opens" affordance on hover. */
+  .chevron {
+    display: grid;
+    place-items: center;
+    color: var(--sc-muted);
+    font-size: 15px;
+    font-weight: 300;
+    line-height: 1;
+    opacity: 0;
+    transform: translateX(-3px);
+    transition:
+      opacity 140ms var(--sc-ease),
+      transform 140ms var(--sc-ease);
+  }
+
+  .row:hover .chevron,
+  .row:focus-within .chevron {
+    opacity: 0.85;
+    transform: translateX(0);
+  }
+
+  /* Scroll-edge fades hint that more tasks are reachable above/below. */
+  .fade {
+    position: absolute;
+    z-index: 1;
+    left: 0;
+    right: 0;
+    height: 20px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 160ms ease;
+  }
+
+  .fade.top {
+    top: 0;
+    background: linear-gradient(
+      to bottom,
+      color-mix(in srgb, var(--sc-surface) 97%, transparent),
+      transparent
+    );
+  }
+
+  .fade.bottom {
+    bottom: 0;
+    background: linear-gradient(
+      to top,
+      color-mix(in srgb, var(--sc-surface) 97%, transparent),
+      transparent
+    );
+  }
+
+  .drawer.show-top-fade .fade.top,
+  .drawer.show-bottom-fade .fade.bottom {
+    opacity: 1;
   }
 
   .status {

@@ -12,6 +12,7 @@ use crate::settings_store::{self, PersistedSettings};
 use crate::windows;
 
 pub struct TrayMenu {
+    pub menu: Menu<Wry>,
     pub dynamic_island: CheckMenuItem<Wry>,
     pub pin: CheckMenuItem<Wry>,
     pub focus: CheckMenuItem<Wry>,
@@ -25,6 +26,7 @@ pub fn setup_tray(app: &tauri::App) -> tauri::Result<()> {
         .unwrap_or_default();
 
     let view = MenuItem::with_id(app, "view-tasks", "查看所有任务", true, None::<&str>)?;
+    let mark_read = MenuItem::with_id(app, "mark-all-read", "全部标为已读", true, None::<&str>)?;
     let mute = CheckMenuItem::with_id(
         app,
         "mute",
@@ -71,6 +73,7 @@ pub fn setup_tray(app: &tauri::App) -> tauri::Result<()> {
         app,
         &[
             &view,
+            &mark_read,
             &mute,
             &focus,
             &dynamic_island,
@@ -81,13 +84,6 @@ pub fn setup_tray(app: &tauri::App) -> tauri::Result<()> {
             &quit,
         ],
     )?;
-
-    app.manage(TrayMenu {
-        dynamic_island: dynamic_island.clone(),
-        pin: pin.clone(),
-        focus: focus.clone(),
-        mute: mute.clone(),
-    });
 
     let icon = app
         .default_window_icon()
@@ -112,6 +108,43 @@ pub fn setup_tray(app: &tauri::App) -> tauri::Result<()> {
         })
         .build(app)?;
 
+    app.manage(TrayMenu {
+        menu,
+        dynamic_island,
+        pin,
+        focus,
+        mute,
+    });
+
+    Ok(())
+}
+
+/// Native context menu on the work panel.
+///
+/// A second always-on-top WebView (plus `eval` / `location.replace`) can
+/// deadlock WebView2 on Windows. That freeze also kills tray Quit, so the
+/// panel reuses the tray `Menu` on the main window instead.
+///
+/// `popup_menu` must run on the window thread. Invoke handlers may already be
+/// on that thread, so post the popup from a worker and return immediately —
+/// waiting on the UI thread here would deadlock the whole process.
+pub fn popup_context_menu(app: &AppHandle) -> tauri::Result<()> {
+    let app = app.clone();
+    std::thread::spawn(move || {
+        let posted = app.clone();
+        let _ = app.run_on_main_thread(move || {
+            if let Some(stale) = posted.get_webview_window(windows::PANEL_MENU_WINDOW_LABEL) {
+                let _ = stale.destroy();
+            }
+            let Some(main) = posted.get_webview_window(windows::MAIN_WINDOW_LABEL) else {
+                return;
+            };
+            let Some(tray) = posted.try_state::<TrayMenu>() else {
+                return;
+            };
+            let _ = main.popup_menu(&tray.menu);
+        });
+    });
     Ok(())
 }
 
@@ -119,6 +152,9 @@ pub fn handle_menu(app: &AppHandle, id: &str) {
     match id {
         "quit" => app.exit(0),
         "view-tasks" => windows::expand_and_focus(app),
+        "mark-all-read" => {
+            let _ = crate::mark_all_read(app.clone());
+        }
         "pin" => {
             let next = toggle_always_on_top(app);
             if let Some(tray) = app.try_state::<TrayMenu>() {

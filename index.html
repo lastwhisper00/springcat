@@ -15,9 +15,16 @@
       }
     </style>
     <script>
-      const settings =
-        location.hash === "#settings" || /[?&]window=settings/.test(location.search);
-      document.documentElement.classList.add(settings ? "settings" : "overlay");
+      (function () {
+        const params = new URLSearchParams(location.search);
+        const settings =
+          location.hash === "#settings" || params.get("window") === "settings";
+        const panelMenu =
+          location.hash === "#panel-menu" || params.get("window") === "panel-menu";
+        document.documentElement.classList.add(
+          settings ? "settings" : panelMenu ? "panel-menu" : "overlay",
+        );
+      })();
     </script>
   </head>
   <body>
