@@ -13,10 +13,18 @@ function task(partial: Partial<TaskItem> & Pick<TaskItem, "id" | "status" | "tit
   };
 }
 
-export type DemoKind = SurfaceState["kind"] | "completed-many" | "working-many";
+export type DemoKind = SurfaceState["kind"] | "completed-many" | "working-many" | "mixed" | "many";
 
 export function tasksForKind(kind: DemoKind): TaskItem[] {
   switch (kind) {
+    case "mixed":
+      return DEMO_TASK_LIST;
+    case "many":
+      return [...DEMO_TASK_LIST,
+        task({ id: "copy-review", source: "gemini-cli", status: "waiting", title: "校对界面文案", updatedAt: at(3) }),
+        task({ id: "build-check", source: "codex", status: "running", title: "验证构建流程", updatedAt: at(2) }),
+        task({ id: "research-notes", source: "cursor", status: "completed", title: "汇总调研记录", updatedAt: at(1) }),
+      ];
     case "idle":
       return [];
     case "working":
@@ -123,15 +131,9 @@ export function tasksForKind(kind: DemoKind): TaskItem[] {
 }
 
 export const DEMO_TASK_LIST: TaskItem[] = [
-  ...tasksForKind("waiting"),
-  task({
-    id: "review",
-    status: "running",
-    title: "审查鉴权中间件",
-    source: "cursor",
-    startedAt: at(2),
-    updatedAt: at(7),
-    unread: false,
-  }),
-  ...tasksForKind("completed"),
+  task({ id: "settings-interaction", source: "codex", status: "waiting", title: "重构设置页交互", updatedAt: at(9) }),
+  task({ id: "interview-review", source: "cursor", status: "running", title: "整理用户访谈", startedAt: at(2), updatedAt: at(8), unread: false }),
+  task({ id: "design-handoff", source: "gemini-cli", status: "waiting", title: "设计交接文档", updatedAt: at(7) }),
+  task({ id: "api-review", source: "codex", status: "waiting", title: "检查接口变更", updatedAt: at(6) }),
+  task({ id: "interaction-tests", source: "cursor", status: "completed", title: "补充交互测试", updatedAt: at(5) }),
 ];

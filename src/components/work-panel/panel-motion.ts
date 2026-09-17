@@ -5,15 +5,19 @@ import type { DockSide, PanelLayout } from "$domain";
  *
  * Visual stages:
  *   icon  — only the ball
- *   strip — 42px chrome (the narrow bar)
+ *   strip — 48px chrome (the narrow bar)
  *   panel — full list
  *
  * Ball lanes:
  *   edge  — against the screen edge we are docked to
- *   inner — toward the desktop
+ *   inner — the leading identity position in the open surface
  *
  * Open  = icon → strip (ball at edge) → ball to inner → panel
  * Close = panel → strip → ball to edge → icon
+ *
+ * Beats overlap rather than queue: each hold launches the next frame while
+ * the previous CSS transition is still decelerating (see the launch constants
+ * below), keeping one continuous velocity across the whole gesture.
  * Dock side only maps edge/inner onto start/end. No per-side choreography.
  */
 export type MotionFlow = "idle" | "opening" | "closing" | "folding" | "unfolding";
@@ -32,22 +36,36 @@ export interface MotionBeat {
   hold: number;
 }
 
+export const SURFACE_EASE = "cubic-bezier(0.24, 0.5, 0.32, 1)";
+
 export const MOTION = {
-  reveal: 70,
-  strip: 280,
-  capsule: 420,
-  travel: 380,
-  panel: 420,
+  // Let the surface change read as one damped gesture, with enough time for
+  // the pill and drawer silhouettes to stay visible as they settle.
+  reveal: 48,
+  strip: 320,
+  capsule: 340,
+  travel: 280,
+  panel: 400,
+  fold: 340,
   dock: 280,
 } as const;
+
+/**
+ * Overlap tuning: the next beat launches while the previous one is still
+ * decelerating instead of waiting for it to fully stop. Velocity therefore
+ * never returns to zero between phases. The terminal hold still lets the
+ * surface finish settling before its backing window can be resized.
+ */
+const TRAVEL_LAUNCH_MS = 100;
+const CONTRACT_LAUNCH_MS = 100;
 
 export function edgeAlign(side: DockSide): BallAlign {
   if (side === "top") return "center";
   return side === "right" ? "end" : "start";
 }
 
-export function innerAlign(side: DockSide): BallAlign {
-  return side === "left" ? "end" : "start";
+export function innerAlign(_side: DockSide): BallAlign {
+  return "start";
 }
 
 export function resolveAlign(side: DockSide, lane: BallLane): BallAlign {
@@ -117,8 +135,8 @@ export function idleFrame(layout: PanelLayout): MotionFrame {
 }
 
 /** Keep the full-size orb for the seed frame; shrink only as the pill reveals. */
-export function orbSize(stage: MotionStage): 36 | 32 {
-  return stage === "icon" ? 36 : 32;
+export function orbSize(stage: MotionStage): 36 | 28 {
+  return stage === "icon" ? 36 : 28;
 }
 
 export function openPlan(target: PanelLayout): MotionBeat[] {
@@ -127,7 +145,9 @@ export function openPlan(target: PanelLayout): MotionBeat[] {
     // Keep the seed frame on screen briefly so the card can grow out of the orb
     // instead of mounting and jumping to the strip in the same browser frame.
     { frame: { stage: "icon", ball: "edge" }, hold: MOTION.reveal },
-    { frame: { stage: "strip", ball: "edge" }, hold: MOTION.strip },
+    // Launch the ball while the pill is still revealing so the two phases
+    // overlap instead of stopping between beats.
+    { frame: { stage: "strip", ball: "edge" }, hold: TRAVEL_LAUNCH_MS },
     { frame: { stage: "strip", ball: "inner" }, hold: MOTION.travel },
     { frame: { stage: last, ball: "inner" }, hold: last === "panel" ? MOTION.panel : 0 },
   ];
@@ -137,7 +157,9 @@ export function openPlan(target: PanelLayout): MotionBeat[] {
 export function closeCapsulePlan(): MotionBeat[] {
   return [
     { frame: { stage: "strip", ball: "inner" }, hold: 0 },
-    { frame: { stage: "strip", ball: "edge" }, hold: MOTION.travel },
+    // Start contracting the capsule while the ball is still travelling so the
+    // surface shrinks continuously behind the moving orb.
+    { frame: { stage: "strip", ball: "edge" }, hold: CONTRACT_LAUNCH_MS },
     { frame: { stage: "icon", ball: "edge" }, hold: MOTION.capsule },
   ];
 }
@@ -145,15 +167,15 @@ export function closeCapsulePlan(): MotionBeat[] {
 /** Collapse only the task drawer, leaving the pill and ball in place. */
 export function foldPlan(): MotionBeat[] {
   return [
-    { frame: { stage: "panel", ball: "inner" }, hold: 0 },
-    { frame: { stage: "strip", ball: "inner" }, hold: MOTION.panel },
+    { frame: { stage: "panel", ball: "inner" }, hold: MOTION.reveal },
+    { frame: { stage: "strip", ball: "inner" }, hold: MOTION.fold },
   ];
 }
 
 /** Reveal only the task drawer while the pill and ball remain stationary. */
 export function unfoldPlan(): MotionBeat[] {
   return [
-    { frame: { stage: "strip", ball: "inner" }, hold: 0 },
+    { frame: { stage: "strip", ball: "inner" }, hold: MOTION.reveal },
     { frame: { stage: "panel", ball: "inner" }, hold: MOTION.panel },
   ];
 }

@@ -638,6 +638,7 @@ fn source_sql(source: TaskSource) -> &'static str {
         TaskSource::WorkBuddy => "workbuddy",
         TaskSource::Marvis => "marvis",
         TaskSource::DshDesktop => "dsh-desktop",
+        TaskSource::Zcode => "zcode",
         TaskSource::Unknown => "unknown",
     }
 }
@@ -651,6 +652,7 @@ fn source_from_sql(value: &str) -> TaskSource {
         "workbuddy" => TaskSource::WorkBuddy,
         "marvis" => TaskSource::Marvis,
         "dsh-desktop" => TaskSource::DshDesktop,
+        "zcode" => TaskSource::Zcode,
         _ => TaskSource::Unknown,
     }
 }

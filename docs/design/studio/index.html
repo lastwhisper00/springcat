@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><title>SpringCat · 产品设计全览</title><link rel="stylesheet" href="fonts.css"><link rel="stylesheet" href="design.css"></head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="index.html" aria-label="设计总览"><span class="brand-icon" aria-hidden="true"><i></i><i></i><i></i></span><span>SpringCat <small>Design studio</small></span></a>
+    <span class="file-name">产品形态与交互 <b>Concept 09 · Type</b></span>
+    <a class="prototype-link" href="prototype.html">▷ 操作交互原型</a>
+  </header>
+  <div class="layout">
+    <aside class="sidebar"><div class="side-label">设计页面</div><nav id="pages" aria-label="设计页面"></nav><div class="side-foot"><b>顶部优先 · 小体积常驻</b><span>现有能力 / 设计补齐 / 未来概念<br>所有数据与任务均为示例。</span><a href="README.md">交付与范围说明 ↗</a></div></aside>
+    <main>
+      <div class="toolbar"><select id="mobile-page" aria-label="设计页面"></select><label class="search"><span>⌕</span><input id="search" placeholder="查找本页画板" aria-label="查找本页画板"></label><div class="toolbar-right"><label>主题 <select id="theme"><option value="graphite">深墨</option><option value="porcelain">纸白</option><option value="companion">深海灰</option></select></label><label>缩略图 <select id="density"><option value="small">紧凑</option><option value="normal" selected>标准</option><option value="large">大图</option></select></label></div></div>
+      <section class="board-area"><div class="page-heading"><div><span class="eyebrow" id="page-number"></span><h1 id="page-title"></h1><p id="page-subtitle"></p></div><div class="page-count"><span id="count"></span><a id="download-sheet" download style="display:block;margin-top:9px;color:#52715f">下载整页 SVG ↓</a></div></div><div class="page-note" id="page-note"></div><div class="boards" id="boards"></div><div class="empty" id="empty" hidden>没有匹配的画板。<button id="clear-search">清除筛选</button></div><footer class="board-footer"><span id="totals"></span><span>点击画板查看交互标注；双击或“放大查看”阅读细节。</span></footer></section>
+    </main>
+    <aside class="inspector"><div class="inspector-tabs"><b>检查画板</b><span>交互规格</span></div><div id="inspector"></div></aside>
+  </div>
+  <dialog id="detail"><div class="dialog-top"><div><span id="detail-id"></span><h2 id="detail-title"></h2></div><div><label>显示 <select id="detail-scale"><option value="fit">适合窗口</option><option value="1">100%</option><option value="1.5">150%</option><option value="2">200%</option></select></label><button id="close-detail" aria-label="关闭放大画板">×</button></div></div><div class="detail-body"><div class="stage" id="stage"></div><aside id="detail-notes"></aside></div><div class="dialog-bottom"><span>SVG 可导入 Figma；原生组件与 Auto Layout 需另建。</span><a id="download-svg" download>下载当前 SVG ↓</a></div></dialog>
+  <div class="toast" id="toast" role="status"></div>
+  <script src="design-data.js"></script><script src="design.js"></script>
+</body></html>

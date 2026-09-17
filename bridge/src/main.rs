@@ -20,7 +20,7 @@ fn run() -> Result<(), String> {
     let args: Vec<String> = env::args().skip(1).collect();
     if args.first().map(String::as_str) != Some("emit") {
         return Err(
-            "usage: springcat-bridge emit --source <codex|cursor|grok-cli|gemini-cli> [--event <type>]".into(),
+            "usage: springcat-bridge emit --source <codex|cursor|grok-cli|gemini-cli|zcode> [--event <type>]".into(),
         );
     }
 
@@ -212,7 +212,10 @@ fn is_placeholder_title(value: &str) -> bool {
 }
 
 fn actual_source(requested: &str, input: &serde_json::Value) -> String {
-    if input.get("hookEventName").is_some() {
+    // Grok's camelCase payloads can still flow through Cursor-configured hooks;
+    // that compatibility shim must not hijack an explicitly requested source
+    // such as zcode, which also sends `hookEventName`.
+    if requested == "cursor" && input.get("hookEventName").is_some() {
         "grok-cli".to_string()
     } else {
         requested.to_string()
@@ -405,6 +408,17 @@ mod tests {
         let object = payload.as_object().unwrap();
         assert_eq!(stable_event_id(object), stable_event_id(object));
         assert!(stable_event_id(object).unwrap().contains("grok-1"));
+    }
+
+    #[test]
+    fn zcode_camel_case_hook_payload_keeps_zcode_source() {
+        let payload = json!({
+            "hookEventName": "PostToolUse",
+            "session_id": "sess_zcode-1",
+            "cwd": "E:/workspace/app"
+        });
+        assert_eq!(actual_source("zcode", &payload), "zcode");
+        assert_eq!(actual_source("grok-cli", &payload), "grok-cli");
     }
 
     #[test]

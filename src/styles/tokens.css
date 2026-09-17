@@ -16,10 +16,18 @@
   --sc-completed: #7dcaa4;
   --sc-failed: #d98980;
   --sc-radius: 22px;
+  /* Micro-interaction ease: quick settle for hovers and small controls. */
   --sc-ease: cubic-bezier(0.22, 1, 0.36, 1);
-  --sc-motion-strip: 280ms;
-  --sc-motion-travel: 380ms;
-  --sc-motion-panel: 420ms;
+  /* Spatial ease: the iOS sheet curve. One velocity profile for every
+     choreographed size/position change — decisive start, long quiet settle,
+     no baked-in overshoot. All spatial properties of a gesture share it so
+     the surface never looks pulled apart mid-flight. */
+  --sc-ease-spatial: cubic-bezier(0.32, 0.72, 0, 1);
+  /* Fade ease: opacity crossfades may decouple from geometry. */
+  --sc-ease-fade: cubic-bezier(0.4, 0, 0.2, 1);
+  --sc-motion-strip: 220ms;
+  --sc-motion-travel: 210ms;
+  --sc-motion-panel: 280ms;
   --sc-motion-dock: 280ms;
 }
 

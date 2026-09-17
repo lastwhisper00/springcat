@@ -32,6 +32,20 @@ describe("bindPrompt", () => {
     );
   });
 
+  it("builds ZCode configuration hooks with enabled events and process handlers", () => {
+    const text = bindPrompt("zcode", "E:/bridge/springcat-bridge.exe", "E:/data/inbox");
+    const config = JSON.parse(text);
+    expect(config.hooks.enabled).toBe(true);
+    expect(config.hooks.events.UserPromptSubmit).toHaveLength(1);
+    expect(config.hooks.events.PostToolUseFailure).toHaveLength(1);
+    expect(config.hooks.events.Stop).toHaveLength(1);
+    const handler = config.hooks.events.UserPromptSubmit[0].hooks[0];
+    expect(handler.type).toBe("process");
+    expect(handler.timeoutMs).toBe(5000);
+    expect(handler.command).toBe("E:/bridge/springcat-bridge.exe");
+    expect(handler.args).toEqual(["emit", "--source", "zcode", "--event", "task.started"]);
+  });
+
   it("explains that WorkBuddy uses passive JSONL monitoring", () => {
     const text = bindPrompt("workbuddy", "E:/bridge/springcat-bridge.exe", "E:/data/inbox");
     expect(text).toContain("无需安装 hooks");

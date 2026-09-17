@@ -17,6 +17,8 @@ pub enum TaskSource {
     Marvis,
     #[serde(rename = "dsh-desktop")]
     DshDesktop,
+    #[serde(rename = "zcode")]
+    Zcode,
     Unknown,
 }
 

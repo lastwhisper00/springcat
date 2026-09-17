@@ -4,6 +4,7 @@
   import { getCurrentWindow } from "@tauri-apps/api/window";
   import WorkPanel from "$components/work-panel/WorkPanel.svelte";
   import { shellSize } from "$components/work-panel/copy";
+  import type { PanelPage } from "$components/work-panel/panel-layout";
   import {
     closeCapsulePlan,
     idleFrame,
@@ -18,7 +19,6 @@
     decideNotification,
     didFinishLastRunning,
     isMuted,
-    notificationRestingLayout,
     shouldPinPanel,
     type PanelLayout,
   } from "$domain";
@@ -29,12 +29,15 @@
   import {
     animateSynchronizedResize,
     applySynchronizedResizeStep,
+    synchronizedResizeEase,
   } from "./synchronized-resize";
   import {
     applyPanelLayout,
     dockAfterDrag,
     getSettings,
+    getAppMeta,
     listTasks,
+    markAllRead,
     movePanel,
     muteHour,
     openLatest,
@@ -43,10 +46,11 @@
     popupPanelMenu,
     preparePanelLayout,
     previewDock,
-    resizePanelFrame,
     resizePinnedPanel,
+    resizePanelFrame,
     setPanelPinned,
     topPinTarget,
+    uiLog,
     updateSettings,
     type DockChanged,
   } from "$services/tauri";
@@ -61,12 +65,22 @@
   } from "./orb-interaction";
 
   const DRAG_PX = 6;
-  const DRAWER_IDLE_MS = 3_000;
+  // A drawer the user opened deliberately stays open until they dismiss it
+  // (pill click, Escape, or window blur). Only policy-opened drawers fold on
+  // inactivity — collapsing a list out from under a reader is the most jarring
+  // kind of motion there is.
+  const DRAWER_IDLE_MS = 6_000;
   // Hover-peek debounce: opening needs a short dwell so a fast mouse sweep
   // across the orb does not flap the native window open; closing is immediate
   // once the pointer actually leaves the window.
   const HOVER_OPEN_MS = 140;
   const isOverlayWindow = resolveWindowKind() === "overlay";
+  let fixedNativeSurface = $state(false);
+  let widgetsSupported = $state(false);
+  let panelPage = $state<PanelPage>("tasks");
+  let headerActionBusy = $state(false);
+  let suppressAutoPin = false;
+  let manualPinTarget: boolean | null = null;
 
   interface PinnedPointerDrag {
     pointerId: number;
@@ -99,6 +113,11 @@
   let hideTimer: ReturnType<typeof setTimeout> | undefined;
   let drawerIdleTimer: ReturnType<typeof setTimeout> | undefined;
   let hoverOpenTimer: ReturnType<typeof setTimeout> | undefined;
+  // After a capsule collapse, the hover-peek stays suppressed briefly. A
+  // pointer sweeping near the freshly collapsed orb would otherwise re-run
+  // the whole open/close native surface dance every pass — the flapping that
+  // reads as constant flicker.
+  let hoverPeekSuppressedUntil = 0;
   let hideKey: string | null = null;
   let hideDeadline = 0;
   let origin: { x: number; y: number } | null = null;
@@ -124,7 +143,7 @@
   // Pinning is a physical top-center mode. Keep the visual choreography tied
   // to that invariant even while settings/HMR events are reconciling the last
   // unpinned dock side in the background.
-  const visualDockSide = $derived<DockSide>(pinned ? "top" : dockSide);
+  const visualDockSide = $derived<DockSide>(pinned || panelPage === "widgets" ? "top" : dockSide);
   const decision = $derived(
     decideNotification(taskStore.surface, {
       muted,
@@ -180,6 +199,7 @@
       lastPhysical,
       pinned,
       pinned ? settingsStore.value.dynamicIslandCompatible : false,
+      panelPage,
     );
   }
 
@@ -189,6 +209,7 @@
       lastPhysical,
       pinned,
       pinned ? settingsStore.value.dynamicIslandCompatible : false,
+      panelPage,
     );
   }
 
@@ -201,6 +222,7 @@
       "strip",
       pinned,
       pinned && settingsStore.value.dynamicIslandCompatible,
+      panelPage,
     );
     const to = shellSize(
       visualDockSide,
@@ -208,42 +230,64 @@
       "strip",
       pinned,
       pinned && settingsStore.value.dynamicIslandCompatible,
+      panelPage,
     );
 
-    // Mount the drawer behind the existing pill before its first visible
-    // frame. During folding, keep the panel stage active so its height follows
-    // the shrinking native viewport instead of snapping directly to 48 px.
+    // Keep the native window out of the animation loop. Resizing an HWND every
+    // frame forces WebView2 to recreate its composition surface and is the
+    // reason the desktop build feels rough even when the CSS demo is smooth.
+    // The window is prepared and resized once; the card itself then grows or
+    // folds on the compositor at 60fps.
     flushSync(() => {
-      synchronizedNativeResize = true;
       flow = expanding ? "unfolding" : "folding";
+      layout = "expanded";
+      synchronizedPanelWidth = from.width;
       motionFrame = {
         stage: expanding ? "strip" : "panel",
         ball: "inner",
       };
     });
     await nextPaint();
+    await nextPaint();
     if (expanding) {
+      if (from.width > to.width) {
+        // Notch-compatible capsules can be wider than the list. Keep both
+        // endpoints inside the canvas until the visible card has contracted.
+        await resizePanelFrame(from.width, to.height, pinned);
+      } else {
+        await prepareNativeLayout(toLayout);
+        await applyNativeLayout(toLayout);
+      }
+      await nextPaint();
+      await nextPaint();
       flushSync(() => {
+        synchronizedPanelWidth = to.width;
         motionFrame = { stage: "panel", ball: "inner" };
       });
+    } else {
+      if (to.width > from.width) {
+        // The compatibility capsule may be wider than the list. Reserve its
+        // full width before animating, and only trim the height at the end.
+        await resizePanelFrame(to.width, from.height, pinned);
+        await nextPaint();
+        await nextPaint();
+      }
+      flushSync(() => {
+        synchronizedPanelWidth = to.width;
+        motionFrame = { stage: "strip", ball: "inner" };
+      });
     }
-    await nextPaint();
 
     try {
-      await animateSynchronizedResize({
-        from,
-        to,
-        duration: motionMs(MOTION.panel),
-        resize: ({ width, height }) => resizePanelFrame(width, height, pinned),
-      });
-      await applyNativeLayout(toLayout);
+      await waitMotionBeat(motionMs(expanding ? MOTION.panel : MOTION.fold));
       settleLayout(toLayout);
+      await applyNativeLayout(toLayout);
       const final = await getCurrentWindow().outerPosition();
       lastPhysical = { x: final.x, y: final.y };
       await nextPaint();
     } finally {
       flushSync(() => {
-        synchronizedNativeResize = false;
+        synchronizedPanelWidth = undefined;
       });
     }
   }
@@ -279,8 +323,8 @@
     if (!pinned || layout === "collapsed") return;
 
     const animatedLayout = layout;
-    const from = shellSize("top", animatedLayout, "strip", true, previousCompatible);
-    const to = shellSize("top", animatedLayout, "strip", true, nextCompatible);
+    const from = shellSize("top", animatedLayout, "strip", true, previousCompatible, panelPage);
+    const to = shellSize("top", animatedLayout, "strip", true, nextCompatible, panelPage);
     if (from.width === to.width) return;
 
     const expanding = to.width > from.width;
@@ -310,6 +354,7 @@
         lastPhysical,
         true,
         nextCompatible,
+        panelPage,
       );
       const final = await getCurrentWindow().outerPosition();
       lastPhysical = { x: final.x, y: final.y };
@@ -328,6 +373,8 @@
 
   async function collapseExpandedAfterBlur() {
     await waitForPanelIdle();
+    if (pinned) return;
+    if (dragStarted || pinnedPointerDrag) return;
     if (windowFocused || layout !== "expanded") return;
     await foldDrawerToPill();
   }
@@ -353,7 +400,9 @@
     await new Promise<void>((resolve, reject) => {
       const frame = async (now: number) => {
         const p = Math.min(1, (now - t0) / ms);
-        const eased = 1 - (1 - p) ** 3;
+        // Window slides ride the same spatial curve as every other surface
+        // motion, so docking reads as one continuous gesture with the panel.
+        const eased = synchronizedResizeEase(p);
         try {
           await movePanel(
             start.x + (x - start.x) * eased,
@@ -388,20 +437,39 @@
     // collapsed CSS resolve against that stale viewport on WebView2, so a
     // side-docked window can clip a blank slice after contraction.
     await nextPaint();
-    await prepareNativeLayout("collapsed");
+    try {
+      await prepareNativeLayout("collapsed");
+    } catch (error) {
+      uiLog(`collapse prepare FAILED: ${String(error)}`);
+    }
+    // The WebView must not only lay out at the shrunken width but have its
+    // frame PRESENTED before the parent HWND exposes it. Two rAFs were not
+    // always enough under GPU load, which is what made the orb vanish after
+    // a collapse; the extra settle beat closes that window.
     await nextPaint();
+    await sleep(40);
     await nextPaint();
-    await applyNativeLayout("collapsed");
+    hoverPeekSuppressedUntil = performance.now() + 400;
+    try {
+      await applyNativeLayout("collapsed");
+    } catch (error) {
+      uiLog(`collapse apply FAILED: ${String(error)}`);
+    }
   }
 
   async function setLayout(next: PanelLayout, force = false) {
     if (dynamicIslandResizeBusy) {
       policyPending = true;
+      uiLog(`setLayout ${next} -> blocked: island-resize`);
       return;
     }
-    if (busy) return;
+    if (busy) {
+      uiLog(`setLayout ${next} -> blocked: busy (layout=${layout} flow=${flow})`);
+      return;
+    }
     if (!force && next === layout && flow === "idle") return;
     busy = true;
+    uiLog(`setLayout ${next} start (from layout=${layout})`);
     try {
       if (next === "peek" && layout === "expanded") {
         await animateDrawerWindow(false);
@@ -417,9 +485,8 @@
         // window is allowed to run the capsule -> orb animation afterward.
         if (layout === "expanded") {
           await animateDrawerWindow(false);
-          // `animateDrawerWindow` clears synchronized-resize in its finally
-          // block. Give the real peek surface one committed frame before the
-          // capsule timeline starts, so the two phases cannot visually merge.
+          // Give the real peek surface one committed frame before the capsule
+          // timeline starts, so the two phases cannot visually merge.
           await nextPaint();
         }
         await collapsePeekCapsule();
@@ -458,6 +525,7 @@
       await applyNativeLayout(next);
     } finally {
       busy = false;
+      uiLog(`setLayout ${next} done (layout=${layout} flow=${flow})`);
       if (policyPending) {
         policyPending = false;
         queueMicrotask(() => applyPolicy(true));
@@ -480,11 +548,13 @@
 
   function armDrawerIdleTimer() {
     clearDrawerIdleTimer();
+    if (pinned) return;
+    if (userExpanded) return;
     if (drawerHovered) return;
     if (layout !== "expanded" || flow !== "idle") return;
     drawerIdleTimer = setTimeout(() => {
       drawerIdleTimer = undefined;
-      if (layout === "expanded" && flow === "idle" && !drawerHovered) {
+      if (layout === "expanded" && flow === "idle" && !drawerHovered && !userExpanded) {
         void foldDrawerToPill();
       }
     }, DRAWER_IDLE_MS);
@@ -540,12 +610,15 @@
     if (hoverPeeking || busy || dynamicIslandResizeBusy || pinBusy || reanchorBusy || dragStarted) return;
     if (layout !== "collapsed" || flow !== "idle") return;
     if (taskStore.surface.kind === "idle") return;
+    if (performance.now() < hoverPeekSuppressedUntil) return;
     clearHoverTimers();
     hoverOpenTimer = setTimeout(() => {
       hoverOpenTimer = undefined;
       if (busy || dynamicIslandResizeBusy || pinBusy || reanchorBusy || dragStarted) return;
       if (layout !== "collapsed" || flow !== "idle") return;
       if (taskStore.surface.kind === "idle") return;
+      if (performance.now() < hoverPeekSuppressedUntil) return;
+      uiLog("hover-peek opening");
       hoverPeeking = true;
       void setLayout("peek");
     }, HOVER_OPEN_MS);
@@ -599,6 +672,9 @@
       return;
     }
     policyPending = false;
+    uiLog(
+      `applyPolicy fromEvent=${fromEvent} layout=${layout} userExpanded=${userExpanded} userPeeked=${userPeeked} hoverPeeking=${hoverPeeking} collapsedPill=${userCollapsedPill}`,
+    );
     // A hover-peek is a user-initiated, transient look: let it stay open for
     // as long as the pointer is on it instead of auto-hiding underneath it.
     if (hoverPeeking && layout === "peek") return;
@@ -616,22 +692,21 @@
       void setLayout("collapsed");
     }
     if (remainingMs !== null && remainingMs > 0) {
+      uiLog(`autoHide armed ${remainingMs}ms`);
       hideTimer = setTimeout(() => {
         hideTimer = undefined;
         if (!userExpanded && !userPeeked && !hoverPeeking && layout === "peek") {
+          uiLog("autoHide firing");
           void setLayout("collapsed");
         }
       }, remainingMs);
     }
   }
 
-  function restingLayout(): PanelLayout {
-    return pinned && taskStore.surface.kind !== "idle"
-      ? "peek"
-      : notificationRestingLayout(decision);
-  }
-
-  async function transitionPinned(next: boolean) {
+  async function transitionPinned() {
+    await waitForPanelIdle();
+    const next = desiredPin();
+    uiLog(`transitionPinned ${next} (layout=${layout})`);
     // The native top guard is an effective runtime state, not just the saved
     // manual preference. Re-sync even when the visual state already matches:
     // changing the manual preference while an auto-pin is active can otherwise
@@ -641,10 +716,21 @@
       if (next) dockSide = "top";
       return;
     }
-    await waitForPanelIdle();
+    const restoreExpanded = layout === "expanded";
     pinBusy = true;
     clearTimers();
     try {
+      // Header pinning keeps the current page open. When already at the top,
+      // only the native pin guard/placement changes; content does not fold.
+      if (restoreExpanded && visualDockSide === "top") {
+        await setPanelPinned(next);
+        pinned = next;
+        dockSide = "top";
+        userExpanded = true;
+        userPeeked = false;
+        await applyNativeLayout("expanded");
+        return;
+      }
       if (next) {
         // A new pin period may reveal the pill once. If the user closes it from
         // the orb afterwards, policy updates must respect that decision.
@@ -658,6 +744,7 @@
         const target = await topPinTarget(
           targetLayout,
           settingsStore.value.dynamicIslandCompatible,
+          panelPage,
         );
         await slideWindowTo(target.x, target.y, motionMs(MOTION.dock));
         dockSide = "top";
@@ -709,6 +796,10 @@
         // explicitly dock it back inside the regular work area.
         await applyPanelLayout("collapsed", lastPhysical, false, false);
       }
+      if (restoreExpanded && layout !== "expanded") {
+        userExpanded = true;
+        await setLayout("expanded");
+      }
     } finally {
       // Keep the guard active throughout the unpin animation, then release it
       // only after the native window has reached its unpinned layout.
@@ -721,12 +812,15 @@
     }
   }
 
-  function queuePinned(next: boolean) {
+  function desiredPin(settings = settingsStore.value) {
+    return manualPinTarget ?? shouldPinPanel(settings, taskStore.items, suppressAutoPin);
+  }
+
+  function queuePinned() {
     pinQueue = pinQueue
-      .then(() => transitionPinned(next))
+      .then(() => transitionPinned())
       .catch((error) => {
         console.error("Unable to update pinned panel", error);
-        pinned = next;
         pinBusy = false;
         applyPolicy(true);
       });
@@ -740,7 +834,7 @@
     try {
       const current = await getCurrentWindow().outerPosition();
       lastPhysical = { x: current.x, y: current.y };
-      const targetLayout = layout === "expanded" ? restingLayout() : layout;
+      const targetLayout = layout;
       dockSide = target.side;
       await slideWindowTo(target.x, target.y, motionMs(MOTION.dock));
       await applyPanelLayout(
@@ -748,6 +842,7 @@
         lastPhysical,
         true,
         settingsStore.value.dynamicIslandCompatible,
+        panelPage,
       );
       settleLayout(targetLayout);
       userExpanded = targetLayout === "expanded";
@@ -802,12 +897,16 @@
   }
 
   function toggleFromOrb() {
-    if (busy || dynamicIslandResizeBusy) return;
+    if (busy || dynamicIslandResizeBusy || headerActionBusy) {
+      uiLog(`orb toggle dropped (busy=${busy} island=${dynamicIslandResizeBusy} layout=${layout})`);
+      return;
+    }
     clearTimers();
     clearHoverTimers();
     // The orb is the master toggle. A click while hover-peeking must expand
     // (the user's baseline was "collapsed"), never collapse the peek again.
     const next = orbTargetLayout(hoverPeeking ? "collapsed" : layout);
+    uiLog(`orb toggle -> ${next} (layout=${layout} hoverPeeking=${hoverPeeking})`);
     hoverPeeking = false;
     userCollapsedPill = next === "collapsed";
     userExpanded = next === "expanded";
@@ -816,10 +915,14 @@
   }
 
   function toggleDrawerFromPill() {
-    if (busy || dynamicIslandResizeBusy || layout === "collapsed") return;
+    if (busy || dynamicIslandResizeBusy || headerActionBusy || layout === "collapsed") {
+      uiLog(`pill toggle dropped (busy=${busy} layout=${layout})`);
+      return;
+    }
     clearTimers();
     clearDrawerIdleTimer();
     const next = pillTargetLayout(layout);
+    uiLog(`pill toggle -> ${next} (layout=${layout})`);
     userCollapsedPill = false;
     if (next === "expanded") {
       userExpanded = true;
@@ -832,7 +935,12 @@
 
   function onKey(event: KeyboardEvent) {
     noteDrawerActivity(event);
+    if (headerActionBusy) return;
     if (event.key === "Escape") {
+      if (layout === "expanded" && panelPage === "widgets") {
+        void togglePanelPage();
+        return;
+      }
       if (layout === "expanded") void foldDrawerToPill();
     }
     if (event.key === "Enter" || event.key === " ") {
@@ -848,8 +956,10 @@
     noteDrawerActivity(event);
     clearHoverTimers();
     if (event.button !== 0) return;
+    if (busy || dynamicIslandResizeBusy || headerActionBusy || flow !== "idle") return;
     const target = event.target as HTMLElement | null;
-    if (target?.closest("button.action, .drawer, .hit")) {
+    uiLog(`pointerdown tag=${target?.tagName} pill=${Boolean(target?.closest("[data-pill-control]"))} orb=${Boolean(target?.closest("[data-orb-control]"))} drag=${Boolean(target?.closest("[data-drag-afford]"))} layout=${layout} flow=${flow} busy=${busy}`);
+    if (target?.closest("button, a, input, select, .drawer, .hit")) {
       canToggle = false;
       pointerToggleTarget = null;
       origin = null;
@@ -863,7 +973,13 @@
     canToggle = pointerToggleTarget !== null;
     const canDrag = layout === "collapsed" || onDragAfford;
     origin = canDrag ? { x: event.clientX, y: event.clientY } : null;
-    if (pinned && canDrag) {
+    if (layout === "expanded" && canDrag) {
+      userExpanded = true;
+      clearDrawerIdleTimer();
+    }
+    // Capture list-header dragging ourselves. Native startDragging can eat
+    // pointerup on Windows and used to leave an expanded list stuck in drag.
+    if ((pinned || layout === "expanded") && canDrag) {
       const element = event.currentTarget as HTMLElement;
       element.setPointerCapture(event.pointerId);
       const win = getCurrentWindow();
@@ -893,6 +1009,7 @@
     canToggle = false;
     pointerToggleTarget = null;
     snapPreview = true;
+    uiLog(`drag start pinned=${pinned} layout=${layout}`);
     cancelHoverPeek();
     if (pinnedPointerDrag) {
       movePinnedWithPointer(event, pinnedPointerDrag);
@@ -900,7 +1017,8 @@
     }
     try {
       await getCurrentWindow().startDragging();
-    } catch {
+    } catch (error) {
+      uiLog(`native drag FAILED: ${String(error)}`);
       dragStarted = false;
       canToggle = false;
       pointerToggleTarget = null;
@@ -922,12 +1040,22 @@
       pointerToggleTarget = null;
       try {
         if (pinned) {
-          const targetLayout = layout === "expanded" ? restingLayout() : layout;
+          const targetLayout = layout;
           const result = await topPinTarget(
             targetLayout,
             settingsStore.value.dynamicIslandCompatible,
+            panelPage,
           );
           await reanchorPinned(result);
+          return;
+        }
+
+        if (layout === "expanded") {
+          const win = getCurrentWindow();
+          const position = await win.outerPosition();
+          lastPhysical = { x: position.x, y: position.y };
+          userExpanded = true;
+          await applyNativeLayout("expanded");
           return;
         }
 
@@ -935,6 +1063,9 @@
         userExpanded = false;
         userPeeked = false;
         const result = await dockAfterDrag(lastPhysical);
+        // Side-docked compact forms reopen the task page; the wider widgets
+        // are top-only and must not retain a top anchor on a side native clip.
+        if (result.side !== "top") panelPage = "tasks";
         dockSide = result.side;
         await slideWindowTo(result.x, result.y, motionMs(MOTION.dock));
         applyPolicy(true);
@@ -943,21 +1074,120 @@
       }
       return;
     }
-    if (!canToggle) return;
+    if (!canToggle) {
+      uiLog(`pointerup: no toggle target (busy=${busy} layout=${layout})`);
+      return;
+    }
     canToggle = false;
     const target = pointerToggleTarget;
     pointerToggleTarget = null;
+    uiLog(`pointerup -> toggle ${target}`);
     if (target === "pill") toggleDrawerFromPill();
     else if (target === "orb") toggleFromOrb();
   }
 
-  async function onAction() {
-    const task = taskStore.surface.kind === "idle" ? undefined : taskStore.surface.task;
-    if (task) await openTask(task.id);
+  let operationNotice = $state("");
+
+  async function toggleHeaderPin() {
+    if (headerActionBusy || busy || pinBusy || dynamicIslandResizeBusy || flow !== "idle") return;
+    const next = !pinned;
+    const previousSuppression = suppressAutoPin;
+    headerActionBusy = true;
+    manualPinTarget = next;
+    suppressAutoPin = !next && taskStore.items.some(task => task.status === "running");
+    userExpanded = true;
+    operationNotice = "";
+    try {
+      settingsStore.value = await updateSettings({ alwaysOnTop: next });
+      await queuePinned();
+      if (pinned !== next) operationNotice = "置顶状态未能更新，请重试";
+    } catch {
+      suppressAutoPin = previousSuppression;
+      operationNotice = "未能保存置顶状态，请重试";
+    } finally {
+      manualPinTarget = null;
+      headerActionBusy = false;
+    }
   }
 
+  async function togglePanelPage() {
+    if (!widgetsSupported || headerActionBusy || busy || pinBusy || dynamicIslandResizeBusy || flow !== "idle" || layout !== "expanded") return;
+    const next: PanelPage = panelPage === "tasks" ? "widgets" : "tasks";
+    const previousPage = panelPage;
+    headerActionBusy = true;
+    clearTimers();
+    clearDrawerIdleTimer();
+    userExpanded = true;
+    operationNotice = "";
+    try {
+      if (next === "widgets" && visualDockSide !== "top") {
+        reanchorBusy = true;
+        // Reposition the small orb first so a side-docked canvas never needs
+        // to paint the wider widget page outside its native clipping bounds.
+        await setLayout("collapsed");
+        const target = await topPinTarget("collapsed", settingsStore.value.dynamicIslandCompatible);
+        await slideWindowTo(target.x, target.y, motionMs(MOTION.dock));
+        dockSide = "top";
+        surfaceAnchorSide = "top";
+        panelPage = next;
+        userExpanded = true;
+        await setLayout("expanded");
+        return;
+      }
+      const from = shellSize("top", "expanded", "strip", pinned, settingsStore.value.dynamicIslandCompatible, panelPage);
+      const to = shellSize("top", "expanded", "strip", pinned, settingsStore.value.dynamicIslandCompatible, next);
+      busy = true;
+      synchronizedPanelWidth = from.width;
+      flow = "unfolding";
+      await nextPaint();
+      await nextPaint();
+      if (to.width > from.width || to.height > from.height) {
+        // Pages trade width for height. Reserve both endpoints before the CSS
+        // transition, then trim the outer clip only after both dimensions settle.
+        await resizePanelFrame(Math.max(from.width, to.width), Math.max(from.height, to.height), pinned);
+        const position = await getCurrentWindow().outerPosition();
+        lastPhysical = { x: position.x, y: position.y };
+        await nextPaint();
+        await nextPaint();
+      }
+      flushSync(() => {
+        dockSide = "top";
+        panelPage = next;
+        synchronizedPanelWidth = to.width;
+      });
+      await waitMotionBeat(MOTION.panel);
+      await applyNativeLayout("expanded");
+      const position = await getCurrentWindow().outerPosition();
+      lastPhysical = { x: position.x, y: position.y };
+    } catch {
+      panelPage = previousPage;
+      operationNotice = "暂时无法切换页面，请重试";
+      await applyNativeLayout(layout).catch(() => undefined);
+    } finally {
+      synchronizedPanelWidth = undefined;
+      settleLayout(layout);
+      busy = false;
+      headerActionBusy = false;
+      reanchorBusy = false;
+      if (policyPending) applyPolicy(true);
+    }
+  }
   async function onTaskOpen(task: TaskItem) {
-    await openTask(task.id);
+    operationNotice = "";
+    try {
+      await openTask(task.id);
+    } catch {
+      operationNotice = "暂时无法打开来源，请重试或在原工具中查找";
+    }
+  }
+
+  async function onMarkAllRead() {
+    operationNotice = "";
+    try {
+      await markAllRead();
+    } catch {
+      operationNotice = "未能标记已读，请稍后重试";
+    }
   }
 
   async function onDoubleClick() {
@@ -973,7 +1203,7 @@
   async function syncSettingsFromBackend() {
     const next = await getSettings();
     const previous = settingsStore.value;
-    const nextPinned = shouldPinPanel(next, taskStore.items);
+    const nextPinned = desiredPin(next);
     const dynamicIslandChanged =
       previous.dynamicIslandCompatible !== next.dynamicIslandCompatible;
     const animateDynamicIslandResize =
@@ -995,7 +1225,7 @@
     // converge on the latest persisted settings.
     settingsStore.value = next;
     if (!pinned && !nextPinned) dockSide = next.dockSide;
-    await queuePinned(nextPinned);
+    await queuePinned();
   }
 
   function queueSettingsRefresh() {
@@ -1025,12 +1255,16 @@
       const policyChanged = taskPolicyKey(taskStore.items) !== taskPolicyKey(event.payload);
       taskStore.items = event.payload;
       if (policyChanged) userCollapsedPill = false;
-      if (finishedLastRunning) userExpanded = false;
-      void queuePinned(shouldPinPanel(settingsStore.value, event.payload)).then(() => {
+      if (finishedLastRunning) {
+        suppressAutoPin = false;
+        if (!pinned && panelPage !== "widgets") userExpanded = false;
+      }
+      void queuePinned().then(() => {
         applyPolicy(true);
       });
     });
     const unlistenLayout = listen<string>("panel-layout", (event) => {
+      uiLog(`panel-layout event: ${event.payload}`);
       if (event.payload === "expanded" || event.payload === "peek" || event.payload === "collapsed") {
         if (event.payload === "collapsed") surfaceAnchorSide = visualDockSide;
         settleLayout(event.payload);
@@ -1060,10 +1294,14 @@
       });
     });
     const unlistenFocus = getCurrentWindow().onFocusChanged((event) => {
+      uiLog(`focus ${event.payload} (layout=${layout})`);
       windowFocused = event.payload;
       if (!windowFocused && layout === "expanded") void collapseExpandedAfterBlur();
     });
     const unlistenPinnedReanchor = listen<DockChanged>("pinned-reanchor", (event) => {
+      // A paused pointer is still dragging. The native move watchdog must
+      // not steal a captured header drag before the user releases it.
+      if (pinnedPointerDrag) return;
       origin = null;
       canToggle = false;
       pointerToggleTarget = null;
@@ -1075,13 +1313,15 @@
     window.addEventListener("keydown", onKey);
 
     void (async () => {
-      const initialSettings = await getSettings();
+      const [initialSettings, meta] = await Promise.all([getSettings(), getAppMeta()]);
+      fixedNativeSurface = meta.fixedOverlaySurface === true;
+      widgetsSupported = meta.widgetPanelSupported === true;
       settingsStore.value = initialSettings;
       dockSide = initialSettings.dockSide;
       surfaceAnchorSide = initialSettings.dockSide;
       taskStore.items = await listTasks();
       await setLayout("collapsed", true);
-      await queuePinned(shouldPinPanel(initialSettings, taskStore.items));
+      await queuePinned();
       applyPolicy(true);
     })();
 
@@ -1132,6 +1372,9 @@
     orbAnchorSide={pinned ? "top" : surfaceAnchorSide}
     {layout}
     {pinned}
+    {panelPage}
+    {widgetsSupported}
+    controlsBusy={headerActionBusy || busy || pinBusy || dynamicIslandResizeBusy || flow !== "idle"}
     dynamicIslandCompatible={settingsStore.value.dynamicIslandCompatible}
     widthOverride={synchronizedPanelWidth}
     {synchronizedNativeResize}
@@ -1140,10 +1383,14 @@
     {motionFrame}
     sideVariant="strip"
     fillWindow
+    {fixedNativeSurface}
     onhoverchange={onDrawerHoverChange}
     ondblclick={onDoubleClick}
     oncontextmenu={onContextMenu}
-    onaction={onAction}
+    notice={operationNotice}
+    onpintoggle={toggleHeaderPin}
+    onpagetoggle={togglePanelPage}
+    onmarkallread={onMarkAllRead}
     ontaskopen={onTaskOpen}
   />
 </main>

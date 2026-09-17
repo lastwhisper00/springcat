@@ -19,8 +19,10 @@ mod settings_store;
 mod tray;
 mod usage_collector;
 mod usage_share;
+mod widgets;
 mod windows;
 mod workbuddy_monitor;
+mod zcode_monitor;
 
 use std::sync::Mutex;
 
@@ -46,8 +48,17 @@ fn app_meta() -> serde_json::Value {
         "displayName": APP_DISPLAY_NAME,
         "version": env!("CARGO_PKG_VERSION"),
         "presentationMode": "work",
-        "dataDirName": APP_DATA_DIR_NAME
+        "dataDirName": APP_DATA_DIR_NAME,
+        "fixedOverlaySurface": cfg!(target_os = "windows"),
+        "widgetPanelSupported": true
     })
+}
+
+/// UI-state diagnostics use the existing rolling log as well as stderr, so
+/// native pointer/layout failures can be inspected after a desktop run.
+#[tauri::command]
+fn debug_log(message: String) {
+    tracing::info!(target: "springcat_ui", "{message}");
 }
 
 #[tauri::command]
@@ -77,13 +88,14 @@ fn prepare_panel_layout(
         (Some(px), Some(py)) => Some((px, py)),
         _ => None,
     };
-    windows::prepare_layout_surface(
+    let result = windows::prepare_layout_surface(
         &app,
         PanelLayout::parse(&layout),
         at,
         dynamic_island_compatible,
-    )
-    .map_err(|err| err.to_string())
+    );
+    eprintln!("[native] prepare_panel_layout {layout} -> {:?}", result.as_ref().err());
+    result.map_err(|err| err.to_string())
 }
 
 #[tauri::command]
@@ -98,13 +110,14 @@ fn apply_panel_layout(
         (Some(px), Some(py)) => Some((px, py)),
         _ => None,
     };
-    windows::apply_layout_at(
+    let result = windows::apply_layout_at(
         &app,
         PanelLayout::parse(&layout),
         at,
         dynamic_island_compatible,
-    )
-    .map_err(|err| err.to_string())
+    );
+    eprintln!("[native] apply_panel_layout {layout} -> {:?}", result.as_ref().err());
+    result.map_err(|err| err.to_string())
 }
 
 #[tauri::command]
@@ -345,6 +358,18 @@ fn list_usage_month(app: AppHandle, month: String) -> Result<Vec<DailyUsage>, St
 }
 
 #[tauri::command]
+async fn widget_today_usage(app: AppHandle) -> Result<widgets::TodayUsage, String> {
+    tauri::async_runtime::spawn_blocking(move || widgets::today_usage(&app))
+        .await.map_err(|err| err.to_string())?
+}
+
+#[tauri::command]
+async fn widget_network() -> Result<widgets::NetworkSnapshot, String> {
+    tauri::async_runtime::spawn_blocking(widgets::network_snapshot)
+        .await.map_err(|err| err.to_string())?
+}
+
+#[tauri::command]
 fn mark_read(app: AppHandle, task_id: String) -> Result<(), String> {
     let Some(collector) = app.try_state::<CollectorState>() else {
         return Ok(());
@@ -434,6 +459,7 @@ fn parse_adapter_source(source: &str) -> Result<TaskSource, String> {
         "workbuddy" => Ok(TaskSource::WorkBuddy),
         "marvis" => Ok(TaskSource::Marvis),
         "dsh-desktop" => Ok(TaskSource::DshDesktop),
+        "zcode" => Ok(TaskSource::Zcode),
         _ => Err("unknown source".into()),
     }
 }
@@ -449,6 +475,7 @@ fn set_adapter_enabled(app: &AppHandle, source: TaskSource, enabled: bool) {
         TaskSource::WorkBuddy => settings.app.adapters.work_buddy = enabled,
         TaskSource::Marvis => settings.app.adapters.marvis = enabled,
         TaskSource::DshDesktop => settings.app.adapters.dsh_desktop = enabled,
+        TaskSource::Zcode => settings.app.adapters.zcode = enabled,
         TaskSource::Unknown => {}
     }
     settings_store::save(&settings);
@@ -527,6 +554,7 @@ pub fn run() {
         ))
         .invoke_handler(tauri::generate_handler![
             app_meta,
+            debug_log,
             resize_panel,
             move_panel,
             place_main_window,
@@ -545,6 +573,8 @@ pub fn run() {
             storage_info,
             list_tasks,
             list_usage_month,
+            widget_today_usage,
+            widget_network,
             mark_read,
             mark_all_read,
             open_task,
@@ -583,6 +613,7 @@ pub fn run() {
                 (settings.app.adapters.work_buddy, TaskSource::WorkBuddy),
                 (settings.app.adapters.marvis, TaskSource::Marvis),
                 (settings.app.adapters.dsh_desktop, TaskSource::DshDesktop),
+                (settings.app.adapters.zcode, TaskSource::Zcode),
             ] {
                 if enabled {
                     if let Err(err) = adapter_installer::install(app.handle(), source) {
@@ -626,6 +657,9 @@ pub fn run() {
             }
             if let Err(err) = dsh_monitor::start(app.handle()) {
                 tracing::warn!(error = %err, "DSH monitor failed to start");
+            }
+            if let Err(err) = zcode_monitor::start(app.handle()) {
+                tracing::warn!(error = %err, "ZCode process monitor failed to start");
             }
             if let Err(err) = usage_collector::start(app.handle()) {
                 tracing::warn!(error = %err, "token usage collector failed to start");

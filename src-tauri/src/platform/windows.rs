@@ -1,6 +1,9 @@
 //! Windows work-area, taskbar, and z-order helpers.
 
-use tauri::{LogicalPosition, LogicalSize, Runtime, WebviewWindow};
+use crate::domain::DockSide;
+#[cfg(not(target_os = "windows"))]
+use tauri::LogicalSize;
+use tauri::{LogicalPosition, Runtime, WebviewWindow};
 
 use std::sync::atomic::{AtomicBool, Ordering};
 #[cfg(target_os = "windows")]
@@ -8,21 +11,17 @@ use std::sync::Mutex;
 
 static PINNED_TOP_GUARD: AtomicBool = AtomicBool::new(false);
 
-/// Keep WebView2's backing surface at the full drawer height. The outer HWND
-/// clips this surface to the current animated panel height, so expanding the
-/// drawer reveals already-rendered pixels instead of reallocating WebView2's
-/// transparent composition surface on every `WM_SIZE`.
-const WEBVIEW_SURFACE_HEIGHT: f64 = 448.0;
-
-/// Only the final orb-sized window keeps the previous wide WebView allocation.
-/// Intermediate contractions (for example drawer -> pill) must resize the
-/// surface width as well, otherwise a right-anchored parent exposes the right
-/// slice of the old surface while the orb remains clipped off its left edge.
-const COLLAPSED_SURFACE_SIZE: f64 = 48.0;
+/// One canvas for every shape. Its center is the resting orb's fixed anchor;
+/// the small outer HWND clips it without changing the WebView viewport.
+/// Two maximum capsule widths leave room to grow toward either dock edge.
+const WEBVIEW_SURFACE_WIDTH: f64 = 1040.0;
+const WEBVIEW_SURFACE_HEIGHT: f64 = 420.0;
+const WEBVIEW_ORB_ANCHOR: f64 = WEBVIEW_SURFACE_WIDTH / 2.0;
+const OUTER_ORB_INSET: f64 = 24.0;
 
 #[cfg(target_os = "windows")]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct PreparedSurface {
+struct WindowBounds {
     x: i32,
     y: i32,
     width: i32,
@@ -30,11 +29,17 @@ struct PreparedSurface {
 }
 
 #[cfg(target_os = "windows")]
-static PREPARED_SURFACE: Mutex<Option<PreparedSurface>> = Mutex::new(None);
+#[derive(Clone, Copy, Debug)]
+struct FixedSurface {
+    parent: isize,
+    host: isize,
+    width: i32,
+    height: i32,
+    logical_height: f64,
+}
 
 #[cfg(target_os = "windows")]
-static WEBVIEW_SURFACE_HOST: std::sync::atomic::AtomicIsize =
-    std::sync::atomic::AtomicIsize::new(0);
+static WEBVIEW_SURFACE: Mutex<Option<FixedSurface>> = Mutex::new(None);
 
 #[cfg(target_os = "windows")]
 #[derive(Clone, Copy, Debug)]
@@ -42,8 +47,6 @@ struct PendingSurfacePosition {
     host: isize,
     screen_x: i32,
     screen_y: i32,
-    width: i32,
-    height: i32,
 }
 
 #[cfg(target_os = "windows")]
@@ -79,7 +82,7 @@ unsafe extern "system" fn overlay_subclass_proc(
 
     if message == WM_SIZE {
         // Wry's parent subclass normally resizes WebView2 to the outer HWND on
-        // every `WM_SIZE`. SpringCat deliberately keeps a full-height backing
+        // every `WM_SIZE`. SpringCat deliberately keeps a fixed backing
         // surface and clips it with the outer window, so forwarding this
         // message would shrink and regrow the surface once per animation frame.
         return windows::Win32::Foundation::LRESULT(0);
@@ -123,24 +126,40 @@ unsafe extern "system" fn overlay_subclass_proc(
         // parent's WINDOWPOS is still pending, so both coordinates become
         // visible in one composition frame instead of exposing a blank clip in
         // between.
-        if let Some(surface) = PENDING_SURFACE_POSITION
-            .lock()
-            .expect("pending WebView surface position")
-            .take()
-        {
-            let surface_host =
-                windows::Win32::Foundation::HWND(surface.host as *mut core::ffi::c_void);
-            let _ = unsafe {
-                SetWindowPos(
-                    surface_host,
-                    None,
-                    surface.screen_x - position.x,
-                    surface.screen_y - position.y,
-                    surface.width,
-                    surface.height,
-                    SWP_NOACTIVATE | SWP_NOZORDER,
-                )
-            };
+        //
+        // Consume the pending rebase ONLY for real moves/resizes. Other
+        // SetWindowPos calls on this HWND — most importantly the topmost
+        // watchdog, which fires every 100 ms with SWP_NOMOVE | SWP_NOSIZE —
+        // also pass through here; letting one of those steal the pending
+        // rebase repositioned the WebView host against garbage WINDOWPOS
+        // coordinates and left the panel showing a blank slice.
+        let carries_position = position.flags.0 & (SWP_NOMOVE.0 | SWP_NOSIZE.0) == 0;
+        if carries_position {
+            let pending = PENDING_SURFACE_POSITION
+                .lock()
+                .expect("pending WebView surface position")
+                .take();
+            if let Some(surface) = pending {
+                let surface_host =
+                    windows::Win32::Foundation::HWND(surface.host as *mut core::ffi::c_void);
+                let result = unsafe {
+                    SetWindowPos(
+                        surface_host,
+                        None,
+                        surface.screen_x - position.x,
+                        surface.screen_y - position.y,
+                        0,
+                        0,
+                        SWP_NOACTIVATE | SWP_NOZORDER | SWP_NOSIZE,
+                    )
+                };
+                if let Err(error) = result {
+                    tracing::error!(target: "springcat_native", %error, "surface rebase failed; retrying after outer commit");
+                    *PENDING_SURFACE_POSITION
+                        .lock()
+                        .expect("pending WebView surface position") = Some(surface);
+                }
+            }
         }
     }
 
@@ -223,7 +242,11 @@ pub fn configure_overlay_window<R: Runtime>(window: &WebviewWindow<R>) -> tauri:
         let hwnd = window.hwnd()?;
         let style = unsafe { GetWindowLongPtrW(hwnd, GWL_EXSTYLE) };
         unsafe {
-            SetWindowLongPtrW(hwnd, GWL_EXSTYLE, style | WS_EX_TOOLWINDOW.0 as isize);
+            SetWindowLongPtrW(
+                hwnd,
+                GWL_EXSTYLE,
+                style | WS_EX_TOOLWINDOW.0 as isize,
+            );
             let _ = SetWindowPos(
                 hwnd,
                 None,
@@ -416,27 +439,22 @@ pub fn set_window_position<R: Runtime>(
     Ok(())
 }
 
-/// Move and resize in one native operation so left/right dock animations have
-/// identical anchoring. Other platforms use the regular Tauri fallback.
+/// Move and resize the outer clip, keeping the WebView viewport unchanged.
+/// Other platforms keep the regular Tauri resize behavior.
 pub fn set_window_bounds<R: Runtime>(
     window: &WebviewWindow<R>,
     x: f64,
     y: f64,
     width: f64,
     height: f64,
+    side: DockSide,
 ) -> tauri::Result<()> {
     #[cfg(target_os = "windows")]
     {
-        use windows::Win32::UI::WindowsAndMessaging::{
-            SetWindowPos, HWND_TOPMOST, SWP_NOACTIVATE, SWP_NOZORDER,
-        };
+        use windows::Win32::UI::WindowsAndMessaging::{HWND_TOPMOST, SWP_NOACTIVATE, SWP_NOZORDER};
 
         let scale = window.scale_factor()?;
-        let current = window.outer_size()?.to_logical::<f64>(scale);
-        let prepare_surface_first =
-            surface_must_grow_first(current.width, current.height, width, height);
-        let surface_contracts = surface_must_contract(current.width, current.height, width, height);
-        let preserve_surface = surface_contracts && is_collapsed_surface_target(width, height);
+        let surface = ensure_webview_surface(window, height, side)?;
         let pinned = PINNED_TOP_GUARD.load(Ordering::Relaxed);
         let insert_after = pinned.then_some(HWND_TOPMOST);
         let flags = if pinned {
@@ -444,121 +462,75 @@ pub fn set_window_bounds<R: Runtime>(
         } else {
             SWP_NOACTIVATE | SWP_NOZORDER
         };
-        let target = physical_surface_bounds(scale, x, y, width, height);
-        let surface_prepared = take_prepared_surface(target);
-        // A prepared opening surface and a contracting surface already contain
-        // the pixels that must be visible after the parent moves. Reposition
-        // that existing surface inside the parent's pending native transaction
-        // and keep its allocation intact. Resizing WebView2 here produces a
-        // one-frame transparent composition surface at the end of closing.
-        if surface_prepared || preserve_surface {
-            position_window_over_existing_surface(window, target, insert_after, flags)?;
-            return Ok(());
-        }
-        // A drawer-to-pill fold still contracts the native parent, but unlike
-        // the final pill-to-orb close it must also trim the WebView width. Put
-        // that resized surface at the future parent origin first, then commit
-        // both child and parent coordinates through the same native frame.
-        if surface_contracts {
-            let current_position = window.outer_position()?;
-            let (offset_x, offset_y) =
-                aligned_surface_offset(current_position.x, current_position.y, target.x, target.y);
-            set_webview_surface(window, width, height, offset_x, offset_y)?;
-            position_window_over_existing_surface(window, target, insert_after, flags)?;
-            return Ok(());
-        }
-        // Discrete UI expansion normally arrives with a surface that has
-        // already painted at the target coordinates. Keep this immediate grow
-        // as a fallback for native-only callers that did not prepaint.
-        if prepare_surface_first {
-            set_webview_surface(window, width, height, 0, 0)?;
-        }
-        let result = unsafe {
-            SetWindowPos(
-                window.hwnd()?,
-                insert_after,
-                (x * scale).round() as i32,
-                (y * scale).round() as i32,
-                (width * scale).round() as i32,
-                (height * scale).round() as i32,
-                flags,
-            )
-        };
-        if result.is_ok() {
-            // Keep the native HWND rectangular and let the transparent WebView/CSS
-            // draw the shape. SetWindowRgn is a 1-bit clip on Windows; at high DPI
-            // it leaves stair-stepped backing-surface pixels around the breathing orb.
-            return Ok(());
-        }
+        let target = physical_window_bounds(scale, x, y, width, height);
+        let offset_x = physical_surface_offset(side, width, scale);
+        tracing::info!(
+            target: "springcat_native", ?side, x = target.x, y = target.y,
+            width = target.width, height = target.height, offset_x,
+            backing_width = surface.width, backing_height = surface.height,
+            "commit outer clip; backing unchanged"
+        );
+        return position_window_over_existing_surface(
+            window,
+            surface.host,
+            target,
+            offset_x,
+            insert_after,
+            flags,
+        );
     }
 
-    window.set_size(LogicalSize::new(width, height))?;
-    window.set_position(LogicalPosition::new(x, y))?;
-    Ok(())
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = side;
+        window.set_size(LogicalSize::new(width, height))?;
+        window.set_position(LogicalPosition::new(x, y))?;
+        Ok(())
+    }
 }
 
-/// Resize the WebView2 surface while the parent HWND still has its collapsed
-/// bounds. The child host is shifted by the future parent delta, so the current
-/// 48 px clip continues to show the exact same screen-space orb while WebView2
-/// gets a compositor frame to render the full target layout.
+/// Ensure the fixed canvas exists without rebasing a currently visible frame.
+/// Once initialized, ordinary orb/pill/drawer preparation does no native work.
 pub fn prepare_window_bounds<R: Runtime>(
     window: &WebviewWindow<R>,
-    x: f64,
-    y: f64,
-    width: f64,
+    _x: f64,
+    _y: f64,
+    _width: f64,
     height: f64,
+    side: DockSide,
 ) -> tauri::Result<()> {
     #[cfg(target_os = "windows")]
-    {
-        let scale = window.scale_factor()?;
-        let current = window.outer_position()?;
-        let target = physical_surface_bounds(scale, x, y, width, height);
-        let (offset_x, offset_y) = aligned_surface_offset(current.x, current.y, target.x, target.y);
-        set_webview_surface(window, width, height, offset_x, offset_y)?;
-        *PREPARED_SURFACE.lock().expect("prepared WebView surface") = Some(target);
-    }
-
+    ensure_webview_surface(window, height, side)?;
+    #[cfg(not(target_os = "windows"))]
+    let _ = (window, height, side);
     Ok(())
 }
 
-fn surface_must_grow_first(
-    current_width: f64,
-    current_height: f64,
-    next_width: f64,
-    next_height: f64,
-) -> bool {
-    next_width > current_width + 0.5 || next_height > current_height + 0.5
+fn webview_surface_size(required_height: f64, previous_height: f64) -> (f64, f64) {
+    (
+        WEBVIEW_SURFACE_WIDTH,
+        required_height
+            .max(previous_height)
+            .max(WEBVIEW_SURFACE_HEIGHT),
+    )
 }
 
-fn surface_must_contract(
-    current_width: f64,
-    current_height: f64,
-    next_width: f64,
-    next_height: f64,
-) -> bool {
-    next_width + 0.5 < current_width || next_height + 0.5 < current_height
+fn surface_offset(side: DockSide, outer_width: f64) -> f64 {
+    let anchor = match side {
+        DockSide::Top => outer_width / 2.0,
+        DockSide::Left => OUTER_ORB_INSET,
+        DockSide::Right => outer_width - OUTER_ORB_INSET,
+    };
+    anchor - WEBVIEW_ORB_ANCHOR
 }
 
-fn is_collapsed_surface_target(width: f64, height: f64) -> bool {
-    width <= COLLAPSED_SURFACE_SIZE + 0.5 && height <= COLLAPSED_SURFACE_SIZE + 0.5
-}
-
-fn webview_surface_size(width: f64, height: f64) -> (f64, f64) {
-    (width, height.max(WEBVIEW_SURFACE_HEIGHT))
-}
-
-fn aligned_surface_offset(
-    current_x: i32,
-    current_y: i32,
-    target_x: i32,
-    target_y: i32,
-) -> (i32, i32) {
-    (target_x - current_x, target_y - current_y)
+fn physical_surface_offset(side: DockSide, outer_width: f64, scale: f64) -> i32 {
+    (surface_offset(side, outer_width) * scale).round() as i32
 }
 
 #[cfg(target_os = "windows")]
-fn physical_surface_bounds(scale: f64, x: f64, y: f64, width: f64, height: f64) -> PreparedSurface {
-    PreparedSurface {
+fn physical_window_bounds(scale: f64, x: f64, y: f64, width: f64, height: f64) -> WindowBounds {
+    WindowBounds {
         x: (x * scale).round() as i32,
         y: (y * scale).round() as i32,
         width: (width * scale).round() as i32,
@@ -567,51 +539,39 @@ fn physical_surface_bounds(scale: f64, x: f64, y: f64, width: f64, height: f64) 
 }
 
 #[cfg(target_os = "windows")]
-fn take_prepared_surface(target: PreparedSurface) -> bool {
-    PREPARED_SURFACE
-        .lock()
-        .expect("prepared WebView surface")
-        .take()
-        .is_some_and(|prepared| prepared == target)
+fn native_surface_error(error: impl std::fmt::Display) -> tauri::Error {
+    tracing::error!(target: "springcat_native", %error, "native surface operation failed");
+    std::io::Error::other(error.to_string()).into()
 }
 
 #[cfg(target_os = "windows")]
 fn position_window_over_existing_surface<R: Runtime>(
     window: &WebviewWindow<R>,
-    target: PreparedSurface,
+    surface_host: isize,
+    target: WindowBounds,
+    offset_x: i32,
     insert_after: Option<windows::Win32::Foundation::HWND>,
     flags: windows::Win32::UI::WindowsAndMessaging::SET_WINDOW_POS_FLAGS,
 ) -> tauri::Result<()> {
-    use windows::Win32::Foundation::{HWND, RECT};
+    use windows::Win32::Foundation::HWND;
     use windows::Win32::UI::WindowsAndMessaging::{
-        GetWindowRect, IsWindow, SetWindowPos, SWP_NOACTIVATE, SWP_NOZORDER,
+        SetWindowPos, SWP_NOACTIVATE, SWP_NOSIZE, SWP_NOZORDER,
     };
 
     let parent = window.hwnd()?;
-    let surface_host_raw = WEBVIEW_SURFACE_HOST.load(Ordering::Acquire);
-    let controller_host = HWND(surface_host_raw as *mut core::ffi::c_void);
-    unsafe {
-        let mut surface_rect = RECT::default();
-        let has_surface = surface_host_raw != 0
-            && IsWindow(Some(controller_host)).as_bool()
-            && GetWindowRect(controller_host, &mut surface_rect).is_ok();
+    // The render anchor is fixed in canvas coordinates. Derive its next
+    // screen origin from the requested outer clip, never from stale host
+    // coordinates left behind by a previous dock side or drag.
+    *PENDING_SURFACE_POSITION
+        .lock()
+        .expect("pending WebView surface position") = Some(PendingSurfacePosition {
+        host: surface_host,
+        screen_x: target.x + offset_x,
+        screen_y: target.y,
+    });
 
-        // Keep the already-painted surface at the same screen-space origin.
-        // For a prepared opening that origin is the target origin, producing
-        // offset (0, 0). For closing it becomes a negative child offset and the
-        // smaller parent simply clips the old surface around the resting orb.
-        let pending_surface = has_surface.then_some(PendingSurfacePosition {
-            host: surface_host_raw,
-            screen_x: surface_rect.left,
-            screen_y: surface_rect.top,
-            width: surface_rect.right - surface_rect.left,
-            height: surface_rect.bottom - surface_rect.top,
-        });
-        *PENDING_SURFACE_POSITION
-            .lock()
-            .expect("pending WebView surface position") = pending_surface;
-
-        let result = SetWindowPos(
+    let result = unsafe {
+        SetWindowPos(
             parent,
             insert_after,
             target.x,
@@ -619,107 +579,140 @@ fn position_window_over_existing_surface<R: Runtime>(
             target.width,
             target.height,
             flags,
-        );
+        )
+    };
+    let pending = PENDING_SURFACE_POSITION
+        .lock()
+        .expect("pending WebView surface position")
+        .take();
+    result.map_err(native_surface_error)?;
 
-        if result.is_ok() {
-            // WM_WINDOWPOSCHANGING normally consumes the pending position. Keep
-            // a synchronous fallback for unusual window styles that suppress
-            // that message.
-            if let Some(surface) = PENDING_SURFACE_POSITION
-                .lock()
-                .expect("pending WebView surface position")
-                .take()
-            {
-                let _ = SetWindowPos(
-                    controller_host,
-                    None,
-                    surface.screen_x - target.x,
-                    surface.screen_y - target.y,
-                    surface.width,
-                    surface.height,
-                    SWP_NOACTIVATE | SWP_NOZORDER,
-                );
-            }
-            return Ok(());
+    // WM_WINDOWPOSCHANGING normally moves the host before the parent's clip
+    // commits. Retry synchronously if that message was omitted or failed.
+    if let Some(surface) = pending {
+        unsafe {
+            SetWindowPos(
+                HWND(surface.host as *mut core::ffi::c_void),
+                None,
+                surface.screen_x - target.x,
+                surface.screen_y - target.y,
+                0,
+                0,
+                SWP_NOACTIVATE | SWP_NOZORDER | SWP_NOSIZE,
+            )
         }
-        PENDING_SURFACE_POSITION
-            .lock()
-            .expect("pending WebView surface position")
-            .take();
+        .map_err(native_surface_error)?;
     }
-
-    window.set_size(LogicalSize::new(
-        target.width as f64 / window.scale_factor()?,
-        target.height as f64 / window.scale_factor()?,
-    ))?;
-    window.set_position(LogicalPosition::new(
-        target.x as f64 / window.scale_factor()?,
-        target.y as f64 / window.scale_factor()?,
-    ))?;
     Ok(())
 }
 
 #[cfg(target_os = "windows")]
-fn set_webview_surface<R: Runtime>(
+fn ensure_webview_surface<R: Runtime>(
     window: &WebviewWindow<R>,
-    width: f64,
-    height: f64,
-    offset_x: i32,
-    offset_y: i32,
-) -> tauri::Result<()> {
+    required_height: f64,
+    side: DockSide,
+) -> tauri::Result<FixedSurface> {
     use windows::core::{w, PCWSTR};
     use windows::Win32::Foundation::{HWND, RECT};
     use windows::Win32::UI::WindowsAndMessaging::{
-        FindWindowExW, SetWindowPos, SWP_NOACTIVATE, SWP_NOZORDER,
+        FindWindowExW, IsWindow, SetWindowPos, SWP_NOACTIVATE, SWP_NOZORDER,
     };
 
     let scale = window.scale_factor()?;
-    let (surface_width, surface_height) = webview_surface_size(width, height);
-    let physical_width = (surface_width * scale).round() as i32;
-    let physical_height = (surface_height * scale).round() as i32;
     let parent_raw = window.hwnd()?.0 as isize;
-
-    window.with_webview(move |webview| unsafe {
-        let controller = webview.controller();
-        let _ = controller.SetBounds(RECT {
-            left: 0,
-            top: 0,
-            right: physical_width,
-            bottom: physical_height,
-        });
-
-        // `ICoreWebView2Controller::ParentWindow` returns SpringCat's outer
-        // HWND, not the child that owns the WebView pixels. Moving that handle
-        // leaves WRY_WEBVIEW at its old wide bounds, so a collapsed parent clips
-        // a slice of the old pill instead of the orb. Target Wry's real child
-        // host and keep it aligned with the prepared screen-space surface.
-        let parent = HWND(parent_raw as *mut core::ffi::c_void);
-        if let Ok(surface_host) =
-            FindWindowExW(Some(parent), None, w!("WRY_WEBVIEW"), PCWSTR::null())
+    let previous = *WEBVIEW_SURFACE.lock().expect("fixed WebView surface");
+    let (logical_width, logical_height) = webview_surface_size(
+        required_height,
+        previous
+            .filter(|s| s.parent == parent_raw)
+            .map_or(0.0, |s| s.logical_height),
+    );
+    let physical_width = (logical_width * scale).round() as i32;
+    let physical_height = (logical_height * scale).round() as i32;
+    if let Some(surface) = previous {
+        if surface.parent == parent_raw
+            && surface.width == physical_width
+            && surface.height == physical_height
+            && unsafe { IsWindow(Some(HWND(surface.host as *mut core::ffi::c_void))).as_bool() }
         {
-            WEBVIEW_SURFACE_HOST.store(surface_host.0 as isize, Ordering::Release);
-            let _ = SetWindowPos(
-                surface_host,
-                None,
-                offset_x,
-                offset_y,
-                physical_width,
-                physical_height,
-                SWP_NOACTIVATE | SWP_NOZORDER,
-            );
+            return Ok(surface);
         }
-    })?;
+    }
 
-    Ok(())
+    let current_width = window.outer_size()?.to_logical::<f64>(scale).width;
+    let offset_x = physical_surface_offset(side, current_width, scale);
+    // Tauri's dispatcher runs with_webview inline on its UI thread. From a
+    // worker it queues the closure; acknowledge actual completion before any
+    // outer clip can expose the canvas. The buffered channel cannot block the
+    // inline callback, and a bounded receive reports a stalled dispatcher.
+    let (sender, receiver) = std::sync::mpsc::sync_channel(1);
+    window.with_webview(move |webview| {
+        let initialized = (|| -> windows::core::Result<FixedSurface> {
+            let parent = HWND(parent_raw as *mut core::ffi::c_void);
+            let surface_host =
+                unsafe { FindWindowExW(Some(parent), None, w!("WRY_WEBVIEW"), PCWSTR::null())? };
+            let controller = webview.controller();
+            let mut current = RECT::default();
+            unsafe {
+                controller.Bounds(&mut current)?;
+            }
+            if current.left != 0
+                || current.top != 0
+                || current.right != physical_width
+                || current.bottom != physical_height
+            {
+                unsafe {
+                    controller.SetBounds(RECT {
+                        left: 0,
+                        top: 0,
+                        right: physical_width,
+                        bottom: physical_height,
+                    })?;
+                }
+                tracing::info!(
+                    target: "springcat_native", physical_width, physical_height, scale,
+                    "resize backing: initialization, DPI change, or larger height"
+                );
+            }
+            // The host is sized only with initial allocation/DPI changes. All
+            // ordinary commits move it with SWP_NOSIZE.
+            unsafe {
+                SetWindowPos(
+                    surface_host,
+                    None,
+                    offset_x,
+                    0,
+                    physical_width,
+                    physical_height,
+                    SWP_NOACTIVATE | SWP_NOZORDER,
+                )?;
+            }
+            let surface = FixedSurface {
+                parent: parent_raw,
+                host: surface_host.0 as isize,
+                width: physical_width,
+                height: physical_height,
+                logical_height,
+            };
+            *WEBVIEW_SURFACE.lock().expect("fixed WebView surface") = Some(surface);
+            Ok(surface)
+        })();
+        let _ = sender.send(initialized.map_err(|error| error.to_string()));
+    })?;
+    receiver
+        .recv_timeout(std::time::Duration::from_secs(2))
+        .map_err(native_surface_error)?
+        .map_err(native_surface_error)
 }
 
 #[cfg(test)]
 mod tests {
     use super::{
-        aligned_surface_offset, is_collapsed_surface_target, pinned_top_guard_enabled,
-        preferred_product_window, set_pinned_top_guard, surface_must_contract,
-        surface_must_grow_first, webview_surface_size,
+        physical_surface_offset, pinned_top_guard_enabled, preferred_product_window,
+        set_pinned_top_guard, surface_offset, webview_surface_size, WEBVIEW_ORB_ANCHOR,
+        WEBVIEW_SURFACE_WIDTH,
     };
+    use crate::domain::DockSide;
 
     #[test]
     fn recognizes_primary_cursor_window_titles() {
@@ -735,45 +728,81 @@ mod tests {
     fn tracks_the_effective_runtime_pin_independently() {
         set_pinned_top_guard(false);
         assert!(!pinned_top_guard_enabled());
-
         set_pinned_top_guard(true);
         assert!(pinned_top_guard_enabled());
-
         set_pinned_top_guard(false);
     }
 
     #[test]
-    fn keeps_the_webview_surface_ready_while_the_native_window_clips_it() {
-        assert_eq!(webview_surface_size(360.0, 48.0), (360.0, 448.0));
-        assert_eq!(webview_surface_size(360.0, 448.0), (360.0, 448.0));
+    fn all_shapes_reuse_one_backing_canvas() {
+        for height in [48.0, 120.0, 280.0, 420.0] {
+            assert_eq!(webview_surface_size(height, 0.0), (1040.0, 420.0));
+            assert_eq!(webview_surface_size(height, 420.0), (1040.0, 420.0));
+        }
+        // A future larger drawer may grow the canvas, but folding never shrinks it.
+        assert_eq!(webview_surface_size(560.0, 420.0), (1040.0, 560.0));
+        assert_eq!(webview_surface_size(48.0, 560.0), (1040.0, 560.0));
     }
 
     #[test]
-    fn grows_the_webview_surface_before_exposing_a_larger_parent() {
-        assert!(surface_must_grow_first(48.0, 48.0, 360.0, 448.0));
-        assert!(surface_must_grow_first(360.0, 48.0, 520.0, 48.0));
-        assert!(!surface_must_grow_first(360.0, 448.0, 48.0, 48.0));
-        assert!(!surface_must_grow_first(360.0, 448.0, 360.0, 48.0));
+    fn collapsed_orb_keeps_the_same_canvas_anchor_when_dragged_between_edges() {
+        for side in [DockSide::Top, DockSide::Left, DockSide::Right] {
+            assert_eq!(surface_offset(side, 48.0), -496.0);
+            assert_eq!(WEBVIEW_ORB_ANCHOR + surface_offset(side, 48.0), 24.0);
+        }
     }
 
     #[test]
-    fn preserves_the_existing_surface_when_the_parent_contracts() {
-        assert!(surface_must_contract(360.0, 448.0, 48.0, 48.0));
-        assert!(surface_must_contract(360.0, 448.0, 360.0, 48.0));
-        assert!(!surface_must_contract(48.0, 48.0, 360.0, 448.0));
-        assert!(!surface_must_contract(360.0, 48.0, 360.0, 48.0));
+    fn settled_cards_fit_the_outer_clip_on_every_dock_and_shape() {
+        for side in [DockSide::Top, DockSide::Left, DockSide::Right] {
+            for width in [48.0, 268.0, 360.0, 440.0, 520.0] {
+                // These are WorkPanel's fixed-native canvas coordinates.
+                let card_left = match side {
+                    DockSide::Top => WEBVIEW_ORB_ANCHOR - width / 2.0,
+                    DockSide::Left => WEBVIEW_ORB_ANCHOR - 24.0,
+                    DockSide::Right => WEBVIEW_ORB_ANCHOR + 24.0 - width,
+                };
+                assert!(card_left >= 0.0);
+                assert!(card_left + width <= WEBVIEW_SURFACE_WIDTH);
+                let native_left = card_left + surface_offset(side, width);
+                assert_eq!(native_left, 0.0);
+                assert_eq!(native_left + width, width);
+            }
+        }
     }
 
     #[test]
-    fn preserves_a_wide_surface_only_for_the_final_orb() {
-        assert!(is_collapsed_surface_target(48.0, 48.0));
-        assert!(!is_collapsed_surface_target(268.0, 48.0));
-        assert!(!is_collapsed_surface_target(48.0, 448.0));
+    fn shape_changes_preserve_the_orb_screen_anchor() {
+        let screen_anchor = 1280.0;
+        for side in [DockSide::Top, DockSide::Left, DockSide::Right] {
+            for width in [48.0, 268.0, 360.0, 440.0, 520.0] {
+                let outer_x = match side {
+                    DockSide::Top => screen_anchor - width / 2.0,
+                    DockSide::Left => screen_anchor - 24.0,
+                    DockSide::Right => screen_anchor - width + 24.0,
+                };
+                let orb_screen_x = outer_x + surface_offset(side, width) + WEBVIEW_ORB_ANCHOR;
+                assert_eq!(orb_screen_x, screen_anchor);
+            }
+        }
     }
 
     #[test]
-    fn aligns_a_prepainted_surface_with_its_future_screen_origin() {
-        assert_eq!(aligned_surface_offset(1100, 56, 788, 56), (-312, 0));
-        assert_eq!(aligned_surface_offset(56, 400, 56, 120), (0, -280));
+    fn dpi_rounding_keeps_the_card_and_orb_within_one_physical_pixel() {
+        for scale in [1.0, 1.25, 1.5, 1.75, 2.0] {
+            for side in [DockSide::Top, DockSide::Left, DockSide::Right] {
+                for width in [48.0, 268.0, 311.5, 360.0, 440.0, 520.0] {
+                    let offset = physical_surface_offset(side, width, scale) as f64;
+                    let card_left = -surface_offset(side, width) * scale;
+                    assert!((card_left + offset).abs() <= 0.5);
+                    let expected_orb = match side {
+                        DockSide::Top => width / 2.0,
+                        DockSide::Left => 24.0,
+                        DockSide::Right => width - 24.0,
+                    } * scale;
+                    assert!((WEBVIEW_ORB_ANCHOR * scale + offset - expected_orb).abs() <= 0.5);
+                }
+            }
+        }
     }
 }

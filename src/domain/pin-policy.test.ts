@@ -2,6 +2,13 @@ import { describe, expect, it } from "vitest";
 import { shouldPinPanel } from "./pin-policy";
 
 describe("shouldPinPanel", () => {
+  it("lets a manual unpin suppress automatic pinning without disabling the preference", () => {
+    const settings = { alwaysOnTop: false, autoPinWhileRunning: true };
+    expect(shouldPinPanel(settings, [{ status: "running" }], true)).toBe(false);
+    expect(shouldPinPanel(settings, [{ status: "running" }], false)).toBe(true);
+    expect(shouldPinPanel({ ...settings, alwaysOnTop: true }, [{ status: "running" }], true)).toBe(true);
+    expect(settings.autoPinWhileRunning).toBe(true);
+  });
   it("preserves a manual pin regardless of task state", () => {
     expect(
       shouldPinPanel(

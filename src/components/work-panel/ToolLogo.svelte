@@ -7,6 +7,7 @@
   import grokLogo from "../../assets/tool-logos/grok.svg";
   import marvisLogo from "../../assets/tool-logos/marvis.svg";
   import workBuddyLogo from "../../assets/tool-logos/workbuddy.svg";
+  import zcodeLogo from "../../assets/tool-logos/zcode.png";
 
   const LOGO_URL: Partial<Record<TaskSource, string>> = {
     codex: codexLogo,
@@ -16,14 +17,15 @@
     marvis: marvisLogo,
     workbuddy: workBuddyLogo,
     "dsh-desktop": dshLogo,
+    zcode: zcodeLogo,
   };
 
   let { source }: { source: TaskSource | null } = $props();
   const logo = $derived(source ? LOGO_URL[source] : undefined);
 </script>
 
-{#if logo && (source === "workbuddy" || source === "marvis")}
-  <img class="tool-logo-image" src={logo} alt="" aria-hidden="true" />
+{#if logo && (source === "workbuddy" || source === "marvis" || source === "zcode")}
+  <img class="tool-logo-image" data-source={source} src={logo} alt="" aria-hidden="true" draggable="false" />
 {:else if logo}
   <span
     class="tool-logo"
@@ -69,6 +71,12 @@
     height: 94%;
     border-radius: 22%;
     object-fit: contain;
+  }
+
+  .tool-logo-image[data-source="zcode"] {
+    width: 100%;
+    height: 100%;
+    border-radius: 24%;
   }
 
   .idle-mark {

@@ -16,6 +16,8 @@ pub enum PanelLayout {
     PinnedPeek,
     Expanded,
     PinnedExpanded,
+    Widgets,
+    PinnedWidgets,
 }
 
 impl PanelLayout {
@@ -26,6 +28,8 @@ impl PanelLayout {
             "pinned-peek" => Self::PinnedPeek,
             "expanded" => Self::Expanded,
             "pinned-expanded" => Self::PinnedExpanded,
+            "widgets" => Self::Widgets,
+            "pinned-widgets" => Self::PinnedWidgets,
             _ => Self::Collapsed,
         }
     }
@@ -38,14 +42,20 @@ impl PanelLayout {
             Self::PinnedPeek => "pinned-peek",
             Self::Expanded => "expanded",
             Self::PinnedExpanded => "pinned-expanded",
+            Self::Widgets => "widgets",
+            Self::PinnedWidgets => "pinned-widgets",
         }
     }
 
     pub fn is_pinned(self) -> bool {
         matches!(
             self,
-            Self::PinnedCollapsed | Self::PinnedPeek | Self::PinnedExpanded
+            Self::PinnedCollapsed | Self::PinnedPeek | Self::PinnedExpanded | Self::PinnedWidgets
         )
+    }
+
+    pub fn is_widgets(self) -> bool {
+        matches!(self, Self::Widgets | Self::PinnedWidgets)
     }
 }
 
@@ -83,11 +93,11 @@ pub fn dynamic_island_pinned_peek_size(_side: DockSide) -> (f64, f64) {
 }
 
 pub fn expanded_size(_side: DockSide) -> (f64, f64) {
-    (360.0, 448.0)
+    (440.0, 420.0)
 }
 
 pub fn dynamic_island_pinned_expanded_size(_side: DockSide) -> (f64, f64) {
-    (520.0, 448.0)
+    (440.0, 420.0)
 }
 
 pub fn size_for(
@@ -108,6 +118,8 @@ pub fn size_for(
             dynamic_island_pinned_expanded_size(side)
         }
         PanelLayout::PinnedExpanded => expanded_size(side),
+        // Widget layouts are placed at the top by the window geometry layer.
+        PanelLayout::Widgets | PanelLayout::PinnedWidgets => (800.0, 260.0),
     }
 }
 
@@ -303,12 +315,10 @@ mod tests {
             w: ICON_SIZE,
             h: ICON_SIZE,
         };
-        let along = along_preserving_center(DockSide::Top, icon, 360.0, 448.0);
-        let (x, y) = docked_position(desk(), DockSide::Top, along, 360.0, 448.0);
-        assert!(
-            x > 1400.0,
-            "expanded panel should stay on the right, got x={x}"
-        );
+        let (width, height) = expanded_size(DockSide::Top);
+        let along = along_preserving_center(DockSide::Top, icon, width, height);
+        let (x, y) = docked_position(desk(), DockSide::Top, along, width, height);
+        assert_eq!(x + width, desk().x + desk().w);
         assert_eq!(y, EDGE_MARGIN);
     }
 
@@ -318,7 +328,7 @@ mod tests {
             (ICON_SIZE, ICON_SIZE),
             (268.0, 48.0),
             (360.0, 48.0),
-            (360.0, 448.0),
+            expanded_size(DockSide::Left),
         ] {
             let (left_x, _) = docked_position(desk(), DockSide::Left, 200.0, width, height);
             let (right_x, _) = docked_position(desk(), DockSide::Right, 200.0, width, height);
@@ -337,13 +347,14 @@ mod tests {
             w: ICON_SIZE,
             h: ICON_SIZE,
         };
-        let along = along_preserving_center(DockSide::Top, icon, 360.0, 448.0);
-        let (x, _) = docked_position(desk(), DockSide::Top, along, 360.0, 448.0);
+        let (width, height) = expanded_size(DockSide::Top);
+        let along = along_preserving_center(DockSide::Top, icon, width, height);
+        let (x, _) = docked_position(desk(), DockSide::Top, along, width, height);
         let icon_center = icon.x + icon.w * 0.5;
-        let panel_center = x + 180.0;
+        let panel_center = x + width * 0.5;
         assert!((panel_center - icon_center).abs() < 1.0);
         assert!(
-            x > 700.0,
+            x > 600.0,
             "must not jump back to the left origin, got x={x}"
         );
     }
@@ -356,7 +367,7 @@ mod tests {
             w: ICON_SIZE,
             h: ICON_SIZE,
         };
-        let expanded_width = 360.0;
+        let expanded_width = expanded_size(DockSide::Top).0;
         let expanded_x = along_preserving_center(
             DockSide::Top,
             icon,
@@ -385,11 +396,11 @@ mod tests {
         };
 
         assert_eq!(
-            along_preserving_orb(DockSide::Left, icon, 360.0, 448.0),
+            along_preserving_orb(DockSide::Left, icon, 440.0, 420.0),
             icon.y
         );
         assert_eq!(
-            along_preserving_orb(DockSide::Right, icon, 360.0, 448.0),
+            along_preserving_orb(DockSide::Right, icon, 440.0, 420.0),
             icon.y
         );
     }
@@ -410,7 +421,7 @@ mod tests {
     }
 
     #[test]
-    fn dynamic_island_mode_lengthens_pinned_peek_and_expanded_layouts() {
+    fn dynamic_island_mode_lengthens_only_the_pinned_peek() {
         assert_eq!(
             size_for(DockSide::Top, PanelLayout::PinnedPeek, false),
             (360.0, 48.0)
@@ -421,7 +432,58 @@ mod tests {
         );
         assert_eq!(
             size_for(DockSide::Top, PanelLayout::PinnedExpanded, true),
-            (520.0, 448.0)
+            (440.0, 420.0)
         );
+    }
+
+    #[test]
+    fn expanded_layouts_share_the_same_content_area_on_every_dock() {
+        for side in [DockSide::Top, DockSide::Left, DockSide::Right] {
+            for layout in [PanelLayout::Expanded, PanelLayout::PinnedExpanded] {
+                for compatible in [false, true] {
+                    assert_eq!(size_for(side, layout, compatible), (440.0, 420.0));
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn widget_layout_tokens_preserve_page_and_pin_identity() {
+        for (token, pinned) in [("widgets", false), ("pinned-widgets", true)] {
+            let layout = PanelLayout::parse(token);
+            assert_eq!(layout.as_str(), token);
+            assert_eq!(layout.is_pinned(), pinned);
+            assert!(layout.is_widgets());
+            for compatible in [false, true] {
+                assert_eq!(size_for(DockSide::Top, layout, compatible), (800.0, 260.0));
+            }
+        }
+        assert!(!PanelLayout::Expanded.is_widgets());
+        assert!(!PanelLayout::PinnedExpanded.is_widgets());
+    }
+
+    #[test]
+    fn unpinned_widgets_preserve_the_previous_horizontal_center_at_the_work_area_top() {
+        let previous = Rect {
+            x: 740.0,
+            y: 180.0,
+            w: 440.0,
+            h: 420.0,
+        };
+        let (width, height) = size_for(DockSide::Top, PanelLayout::Widgets, false);
+        let along = along_preserving_orb(DockSide::Top, previous, width, height);
+        let (x, y) = docked_position(desk(), DockSide::Top, along, width, height);
+        assert_eq!(x + width * 0.5, previous.x + previous.w * 0.5);
+        assert_eq!(y, desk().y + EDGE_MARGIN);
+    }
+
+    #[test]
+    fn pinned_widgets_use_the_physical_top_center_without_shrinking() {
+        let bounds = Rect { x: -1920.0, y: 0.0, w: 1920.0, h: 1080.0 };
+        let (width, height) = size_for(DockSide::Top, PanelLayout::PinnedWidgets, false);
+        let (x, y) = pinned_top_position(bounds, width);
+        assert_eq!((width, height), (800.0, 260.0));
+        assert_eq!(x + width * 0.5, bounds.x + bounds.w * 0.5);
+        assert_eq!(y, bounds.y);
     }
 }

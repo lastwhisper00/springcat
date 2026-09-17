@@ -8,6 +8,7 @@ export type TaskSource =
   | "workbuddy"
   | "marvis"
   | "dsh-desktop"
+  | "zcode"
   | "unknown";
 
 export type TaskEventType =
@@ -44,6 +45,7 @@ const TASK_SOURCES: ReadonlySet<string> = new Set([
   "workbuddy",
   "marvis",
   "dsh-desktop",
+  "zcode",
   "unknown",
 ]);
 

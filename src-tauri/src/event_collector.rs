@@ -195,6 +195,7 @@ fn adapter_enabled(app: &AppHandle, source: TaskSource) -> bool {
         TaskSource::WorkBuddy => toggles.work_buddy,
         TaskSource::Marvis => toggles.marvis,
         TaskSource::DshDesktop => toggles.dsh_desktop,
+        TaskSource::Zcode => toggles.zcode,
         TaskSource::Unknown => true,
     }
 }
@@ -292,6 +293,7 @@ fn test_payload(source: TaskSource) -> serde_json::Value {
         TaskSource::WorkBuddy => "workbuddy",
         TaskSource::Marvis => "marvis",
         TaskSource::DshDesktop => "dsh-desktop",
+        TaskSource::Zcode => "zcode",
         TaskSource::Unknown => "unknown",
     };
     let id = uuid::Uuid::new_v4().to_string();
@@ -317,6 +319,7 @@ fn spawn_bridge_emit(source: TaskSource, payload: &serde_json::Value) -> bool {
         TaskSource::Cursor => "cursor",
         TaskSource::GrokCli => "grok-cli",
         TaskSource::GeminiCli => "gemini-cli",
+        TaskSource::Zcode => "zcode",
         TaskSource::WorkBuddy | TaskSource::Marvis | TaskSource::DshDesktop => return false,
         TaskSource::Unknown => return false,
     };
@@ -347,6 +350,7 @@ fn source_label(source: TaskSource) -> &'static str {
         TaskSource::WorkBuddy => "WorkBuddy",
         TaskSource::Marvis => "Marvis",
         TaskSource::DshDesktop => "DSH",
+        TaskSource::Zcode => "ZCode",
         _ => "AI 工具",
     }
 }

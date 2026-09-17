@@ -5,9 +5,10 @@ import type { TaskItem } from "./task-item";
 export function shouldPinPanel(
   settings: Pick<AppSettings, "alwaysOnTop" | "autoPinWhileRunning">,
   tasks: readonly Pick<TaskItem, "status">[],
+  suppressAutoPin = false,
 ): boolean {
   return (
     settings.alwaysOnTop ||
-    (settings.autoPinWhileRunning && tasks.some((task) => task.status === "running"))
+    (!suppressAutoPin && settings.autoPinWhileRunning && tasks.some((task) => task.status === "running"))
   );
 }

@@ -1,0 +1,11 @@
+@font-face {
+  font-family: "SpringCat Sans";
+  src: url("assets/fonts/NotoSansSC-VF.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+:root {
+  --font-ui: "SpringCat Sans", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+}

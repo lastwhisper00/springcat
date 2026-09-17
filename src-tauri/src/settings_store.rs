@@ -73,6 +73,7 @@ pub fn default_adapters() -> AdapterToggles {
         work_buddy: true,
         marvis: true,
         dsh_desktop: true,
+        zcode: true,
     }
 }
 

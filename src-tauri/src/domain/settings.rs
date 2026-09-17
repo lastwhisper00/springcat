@@ -30,6 +30,8 @@ pub struct AdapterToggles {
     pub marvis: bool,
     #[serde(default = "default_enabled")]
     pub dsh_desktop: bool,
+    #[serde(default = "default_enabled")]
+    pub zcode: bool,
 }
 
 fn default_enabled() -> bool {
@@ -84,6 +86,7 @@ impl Default for AppSettings {
                 work_buddy: true,
                 marvis: true,
                 dsh_desktop: true,
+                zcode: true,
             },
         }
     }
@@ -167,6 +170,7 @@ mod tests {
         assert!(settings.adapters.gemini_cli);
         assert!(settings.adapters.marvis);
         assert!(settings.adapters.dsh_desktop);
+        assert!(settings.adapters.zcode);
     }
 
     #[test]

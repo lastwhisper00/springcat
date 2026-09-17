@@ -1,6 +1,8 @@
 # 适配器安装
 
-SpringCat 不轮询 Codex、Cursor、Grok CLI、Gemini CLI、WorkBuddy 或 Marvis 的窗口，也不开本地 HTTP 服务。Codex 桌面端、WorkBuddy 与 Marvis 由 SpringCat 直接读取本机结构化生命周期记录；Codex、Cursor、Grok 和 Gemini 的 hooks 则通过本地 `springcat-bridge` 发送同样的生命周期信号：
+适配器是 SpringCat 作为 vibe coding 工具台的第一项已交付上手能力：把常用 AI 编程工具接到同一个桌面入口。下一刀是在同一产品里原生管理供应商和 API Key，不把外部配置器嵌进来。产品定位见 [项目描述](./项目描述.md)。
+
+SpringCat 不轮询 Codex、Cursor、Grok CLI、Gemini CLI、ZCode、WorkBuddy 或 Marvis 的窗口，也不开本地 HTTP 服务。Codex 桌面端、WorkBuddy 与 Marvis 由 SpringCat 直接读取本机结构化生命周期记录；Codex、Cursor、Grok、Gemini 和 ZCode 的 hooks 则通过本地 `springcat-bridge` 发送同样的生命周期信号：
 
 - 开始：一次新提交开始运行
 - 进度：工具调用或 Agent 响应有更新
@@ -11,7 +13,7 @@ SpringCat 不轮询 Codex、Cursor、Grok CLI、Gemini CLI、WorkBuddy 或 Marvi
 ## 一键安装（推荐）
 
 1. 打开 SpringCat → 设置 → 适配器。
-2. 选择 Codex 桌面端 / CLI、Cursor、Grok CLI、Gemini CLI、WorkBuddy 或 Marvis。
+2. 选择 Codex 桌面端 / CLI、Cursor、ZCode、Grok CLI、Gemini CLI、WorkBuddy 或 Marvis。
 3. 点击「启用监听」。
 
 SpringCat 会自动完成以下操作：
@@ -60,6 +62,20 @@ Codex 采用双通道监听：
 Cursor 会自动重新加载用户级 `hooks.json`，一般不需要重启或进入 Cursor 设置。
 
 SpringCat 启动时还会按 Cursor 会话 ID 回填历史记录中的“未命名任务”，并监听 Cursor 本地状态库纠正缺失 `stop` hook 的完成/中止状态。纠偏只读取会话状态、状态更新时间和生成 ID，不读取对话、工具参数或结果。Cursor 状态库不可用时不会影响开始、进度和完成事件，标题会退回首条 prompt 的短标题。
+
+### ZCode
+
+配置文件：`~/.zcode/cli/config.json`（`hooks.events` + `hooks.enabled`）
+
+| ZCode hook | SpringCat 状态 |
+|---|---|
+| `UserPromptSubmit` | 开始 |
+| `PostToolUse` / `PostToolUseFailure` | 进度 |
+| `Stop` | 完成 |
+
+ZCode 的 configuration hooks 默认不运行，SpringCat 安装时会合并写入 `hooks.events` 并把 `hooks.enabled` 设为 `true`；`config.json` 里的其他配置（模型、MCP 等）保持原样，首次修改会保留 `config.json.springcat.bak` 备份。hook 使用 `process` 类型（参数向量、无 shell），Windows 和 macOS 行为一致。移除监听只删除 SpringCat 自己的条目，不会动 `hooks.enabled` 和其他事件。
+
+绑定后请新建或重启一次 ZCode 会话；已在运行的会话不会重新加载 configuration hooks。bridge 会从 `UserPromptSubmit` 的 `prompt` 派生最多 80 字的短标题，完整对话、工具参数/结果和 transcript 路径照旧不会进入 SpringCat。
 
 ### Grok CLI
 
@@ -130,7 +146,7 @@ Token 用量直接来自 `llm_token_usage`，映射输入、缓存输入、输�
 Codex 本机会话文件 ───────────────────────┐
 WorkBuddy 本地会话 JSONL ─────────────────┤
 Marvis 本地 SQLite/WAL ────────────────────┤
-Codex/Cursor/Grok/Gemini hook             │
+Codex/Cursor/Grok/Gemini/ZCode hook       │
   → springcat-bridge（先删除对话和工具内容）│
   → %APPDATA%\springcat-ai\inbox\         │
   └───────────────────────────────────────┤

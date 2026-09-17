@@ -235,6 +235,7 @@
         if (selected === "workbuddy") adapters.workBuddy = true;
         if (selected === "marvis") adapters.marvis = true;
         if (selected === "dsh-desktop") adapters.dshDesktop = true;
+        if (selected === "zcode") adapters.zcode = true;
         settings = { ...settings, adapters };
       }
       return;
@@ -268,6 +269,7 @@
     if (selected === "workbuddy") adapters.workBuddy = false;
     if (selected === "marvis") adapters.marvis = false;
     if (selected === "dsh-desktop") adapters.dshDesktop = false;
+    if (selected === "zcode") adapters.zcode = false;
     await patch({ adapters });
   }
 
@@ -283,6 +285,7 @@
     if (selected === "gemini-cli") return settings.adapters.geminiCli;
     if (selected === "workbuddy") return settings.adapters.workBuddy;
     if (selected === "marvis") return settings.adapters.marvis;
+    if (selected === "zcode") return settings.adapters.zcode;
     return settings.adapters.dshDesktop;
   }
 
@@ -327,7 +330,9 @@
         ? "~/.grok/hooks/springcat.json"
         : selected === "gemini-cli"
           ? "~/.gemini/settings.json"
-          : `~/.${selected}/hooks.json`;
+          : selected === "zcode"
+            ? "~/.zcode/cli/config.json"
+            : `~/.${selected}/hooks.json`;
     return {
       source: selected,
       installed,
@@ -594,6 +599,7 @@
                           {#if installStatus?.requiresTrust}<p class="note">Codex 本机会话由 SpringCat 直接监听；在 <code>/hooks</code> 中确认信任可启用额外实时通道。</p>{/if}
                           {#if adapter.id === "grok-cli" && installStatus?.installed}<p class="note">Grok 全局 hook 无需项目信任；绑定后请新建或重启一次 Grok 会话。</p>{/if}
                           {#if adapter.id === "gemini-cli" && installStatus?.installed}<p class="note">Gemini CLI 使用官方全局 hooks；现有认证与安全设置会原样保留，绑定后请新建或重启一次会话。</p>{/if}
+                          {#if adapter.id === "zcode" && installStatus?.installed}<p class="note">ZCode 的 configuration hooks 写在 <code>~/.zcode/cli/config.json</code>；只合并 <code>hooks.events</code> 并打开 <code>hooks.enabled</code>，其他配置保持原样。绑定后请新建或重启一次 ZCode 会话。</p>{/if}
                           {#if adapter.id === "workbuddy" && installStatus?.installed}<p class="note">直接只读监听本地 JSONL，不会把完整对话、推理和工具输出写入 SpringCat。</p>{/if}
                           {#if adapter.id === "marvis" && installStatus?.installed}<p class="note">直接只读监听本地 SQLite/WAL，只保存生命周期、短标题、最终摘要和 Token 数字。</p>{/if}
                           <div class="card-actions">
@@ -994,6 +1000,7 @@
   .source-gemini-cli { background: color-mix(in srgb, #8ab4f8 16%, var(--settings-control)); color: #4f86e8; }
   .source-workbuddy { background: color-mix(in srgb, #42b883 13%, var(--settings-control)); color: #2f9b70; }
   .source-marvis { background: color-mix(in srgb, var(--usage-marvis) 13%, var(--settings-control)); color: var(--usage-marvis); }
+  .source-zcode { background: color-mix(in srgb, #62b6dd 16%, var(--settings-control)); color: #2e8fc0; }
 
   .adapter-copy strong {
     font-size: 10.5px;

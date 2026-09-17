@@ -1,253 +1,186 @@
 <script lang="ts">
-  import type { DockSide, PanelLayout, SurfaceState, TaskItem } from "$domain";
+  import type { DockSide, PanelLayout, SurfaceState, TaskItem, TaskSource } from "$domain";
   import TaskDrawer from "$components/task-drawer/TaskDrawer.svelte";
+  import WidgetPanel from "./WidgetPanel.svelte";
+  import type { PanelPage } from "./panel-layout";
   import DockIcon from "./DockIcon.svelte";
-  import { dockCarouselTasks } from "./dock-sources";
-  import {
-    currentTask,
-    panelActionLabel,
-    panelHeadline,
-    panelSummary,
-    SOURCE_LABEL,
-    shellSize,
-  } from "./copy";
-  import {
-    idleFrame,
-    MOTION,
-    orbRollDirection,
-    orbSize,
-    orbSurfaceSide,
-    resolveAlign,
-    type MotionFrame,
-    type MotionFlow,
-    type MotionStage,
-  } from "./panel-motion";
+  import { runningSources, runningTasks, selectRepresentativeSource } from "./dock-sources";
+  import { currentTask, SOURCE_LABEL, shellSize } from "./copy";
+  import { idleFrame, MOTION, SURFACE_EASE, orbSize, orbSurfaceSide, resolveAlign,
+    type MotionFrame, type MotionFlow } from "./panel-motion";
 
   let {
-    surface,
-    tasks = [],
-    dockSide = "top",
-    orbAnchorSide = dockSide,
-    layout = "collapsed",
-    pinned = false,
-    dynamicIslandCompatible = false,
-    widthOverride,
-    synchronizedNativeResize = false,
-    fillWindow = false,
-    snapPreview = false,
-    flow = "idle",
-    motionFrame,
-    onclick,
-    ondblclick,
-    oncontextmenu,
-    onaction,
-    ontaskopen,
-    onhoverchange,
+    surface, tasks = [], dockSide = "top", orbAnchorSide = dockSide,
+    layout = "collapsed", pinned = false, dynamicIslandCompatible = false,
+    widthOverride, availableWidth, synchronizedNativeResize = false, fillWindow = false,
+    fixedNativeSurface = false,
+    snapPreview = false, flow = "idle", motionFrame, notice = "",
+    panelPage = "tasks", controlsBusy = false, widgetsSupported = true,
+    onclick, onpilltoggle, onpintoggle, onpagetoggle, ondblclick, oncontextmenu,
+    ontaskopen, onhoverchange, onmarkallread,
   }: {
-    surface: SurfaceState;
-    tasks?: TaskItem[];
-    dockSide?: DockSide;
-    orbAnchorSide?: DockSide;
-    layout?: PanelLayout;
-    pinned?: boolean;
-    dynamicIslandCompatible?: boolean;
-    widthOverride?: number;
-    synchronizedNativeResize?: boolean;
-    sideVariant?: "strip" | "card";
-    fillWindow?: boolean;
-    snapPreview?: boolean;
-    flow?: MotionFlow;
-    motionFrame?: MotionFrame;
-    onclick?: () => void;
-    ondblclick?: () => void;
-    oncontextmenu?: (event: MouseEvent) => void;
-    onaction?: () => void;
-    ontaskopen?: (task: TaskItem) => void;
-    onhoverchange?: (hovered: boolean) => void;
+    surface: SurfaceState; tasks?: TaskItem[]; dockSide?: DockSide;
+    orbAnchorSide?: DockSide; layout?: PanelLayout; pinned?: boolean;
+    dynamicIslandCompatible?: boolean; widthOverride?: number; availableWidth?: number;
+    synchronizedNativeResize?: boolean; sideVariant?: "strip" | "card";
+    fillWindow?: boolean; fixedNativeSurface?: boolean; snapPreview?: boolean; flow?: MotionFlow;
+    motionFrame?: MotionFrame; notice?: string;
+    panelPage?: PanelPage; controlsBusy?: boolean; widgetsSupported?: boolean;
+    onclick?: () => void; onpilltoggle?: () => void;
+    onpintoggle?: () => void; onpagetoggle?: () => void;
+    ondblclick?: () => void; oncontextmenu?: (event: MouseEvent) => void;
+    ontaskopen?: (task: TaskItem) => void; onhoverchange?: (hovered: boolean) => void;
+    onmarkallread?: () => void;
   } = $props();
 
-  const size = $derived(
-    shellSize(dockSide, layout, "strip", pinned, dynamicIslandCompatible),
-  );
+  const size = $derived(shellSize(dockSide, layout, "strip", pinned, dynamicIslandCompatible, panelPage));
   const renderedWidth = $derived(widthOverride ?? size.width);
-  const carouselTasks = $derived(dockCarouselTasks(tasks, surface));
-  const carouselIdentity = $derived(carouselTasks.map((item) => item.id).join("\u0000"));
-  let carouselIndex = $state(0);
-  // A resting pointer means the user is reading the current task: freeze the
-  // carousel instead of swapping the headline out from under the cursor.
-  let hovering = $state(false);
-
-  const task = $derived(
-    carouselTasks.length > 0
-      ? carouselTasks[carouselIndex % carouselTasks.length]
-      : currentTask(surface),
-  );
-  const headline = $derived(
-    surface.kind === "working" && task ? task.title : panelHeadline(surface),
-  );
-  const summary = $derived(panelSummary(surface));
-  const action = $derived(panelActionLabel(surface));
-  const unread = $derived(surface.kind === "completed" && surface.unread);
-
+  let lastSource = $state<TaskSource | null>(null);
+  const source = $derived(selectRepresentativeSource(tasks, lastSource, currentTask(surface)?.source));
+  $effect(() => { lastSource = source; });
+  const running = $derived(runningTasks(tasks));
+  const sources = $derived(runningSources(tasks));
+  const waitingCount = $derived(tasks.filter(task => task.status === "waiting").length);
+  const failedCount = $derived(tasks.filter(task => task.status === "failed").length);
+  const runningLabel = $derived(running.length ? `${running.length} 项进行中` : "暂无进行中");
+  const sourceDescription = $derived(sources.length
+    ? `运行来源：${sources.map(item => SOURCE_LABEL[item]).join("、")}；当前显示 ${source ? SOURCE_LABEL[source] : "未知来源"}`
+    : source ? `${SOURCE_LABEL[source]} · 暂无进行中的任务` : "暂无任务");
+  const peekLabel = $derived(running.length ? runningLabel
+    : waitingCount ? `${waitingCount} 项待确认`
+    : failedCount ? `${failedCount} 项失败`
+    : surface.kind === "completed" ? `${surface.mergedCount ?? 1} 项已完成` : "暂无进行中");
+  const peekSourceLabel = $derived(sources.length > 1
+    || (!running.length && currentTask(surface)?.source && currentTask(surface)?.source !== source)
+      ? "任务汇总" : source ? SOURCE_LABEL[source] : "");
+  const sharedStatusCopy = $derived(runningLabel === peekLabel);
   const frame = $derived(motionFrame ?? idleFrame(layout));
-  const stage = $derived<MotionStage>(frame.stage);
-  const ballLane = $derived(frame.ball);
-
-  const ballSurfaceSide = $derived(
-    orbSurfaceSide(dockSide, orbAnchorSide, layout, flow, stage),
-  );
-  const ballAlign = $derived(resolveAlign(ballSurfaceSide, ballLane));
-  const rollDirection = $derived(orbRollDirection(dockSide, flow, stage, ballLane));
+  const stage = $derived(frame.stage);
+  const peekSize = $derived(shellSize(dockSide, "peek", "strip", pinned, dynamicIslandCompatible));
+  const panelSize = $derived(shellSize(dockSide, "expanded", "strip", pinned, dynamicIslandCompatible, panelPage));
+  const cardWidth = $derived(stage === "icon" ? 36 : Math.min(
+    widthOverride ?? (stage === "panel" ? panelSize.width : peekSize.width),
+    availableWidth ?? Number.POSITIVE_INFINITY,
+  ));
+  const ballSurfaceSide = $derived(orbSurfaceSide(dockSide, orbAnchorSide, layout, flow, stage));
+  // Windows keeps a fixed backing canvas. Its center is the physical orb
+  // anchor for every dock, including a collapsed orb being dragged across edges.
+  const ballAlign = $derived(fixedNativeSurface && frame.ball === "edge"
+    ? "center" : resolveAlign(ballSurfaceSide, frame.ball));
   const showCard = $derived(!(flow === "idle" && layout === "collapsed"));
-  const isIcon = $derived(!showCard);
-  const showCopy = $derived(stage !== "icon" && (stage === "panel" || ballLane === "inner"));
-
-  $effect(() => {
-    carouselIdentity;
-    carouselIndex = 0;
-  });
-
-  $effect(() => {
-    const identity = carouselIdentity;
-    const motionIdle = flow === "idle";
-    // A task/logo swap while the orb is settling reads as a flash at its final
-    // position. Freeze the current carousel item for the whole motion and give
-    // it a fresh interval only after the panel is fully idle again.
-    if (!motionIdle) return;
-    if (!identity) return;
-    if (hovering) return;
-
-    const count = identity.split("\u0000").length;
-    if (count <= 1) return;
-
-    const timer = setInterval(() => {
-      carouselIndex = (carouselIndex + 1) % count;
-    }, 2400);
-    return () => clearInterval(timer);
-  });
-
+  const showCopy = $derived(stage !== "icon" && (stage === "panel" || frame.ball === "inner"));
 </script>
 
+<!-- svelte-ignore a11y_no_noninteractive_tabindex (Only the collapsed branch is a focusable button; the expanded region has tabindex -1.) -->
 <section
-  class="shell"
-  class:fill={fillWindow}
-  class:preview={snapPreview}
-  class:icon={isIcon}
-  class:open={showCard}
-  data-kind={surface.kind}
-  data-dock={dockSide}
-  data-layout={layout}
-  data-pinned={pinned}
-  data-dynamic-island={dynamicIslandCompatible}
+  class="shell" class:fill={fillWindow} class:preview={snapPreview}
+  class:icon={!showCard} class:open={showCard}
+  data-kind={surface.kind} data-dock={dockSide} data-layout={layout}
+  data-page={panelPage}
+  data-pinned={pinned} data-dynamic-island={dynamicIslandCompatible}
+  data-fixed-native-surface={fixedNativeSurface}
   data-synchronized-native-resize={synchronizedNativeResize}
-  data-has-action={Boolean(action)}
-  data-flow={flow}
-  data-stage={stage}
-  data-ball={ballAlign}
-  data-ball-lane={ballLane}
-  data-roll={rollDirection}
+  data-flow={flow} data-stage={stage} data-ball={ballAlign}
   style:width={fillWindow ? "100%" : `${renderedWidth}px`}
   style:height={fillWindow ? "100%" : `${size.height}px`}
-  style:--sc-card-width={fillWindow ? "100%" : `${renderedWidth}px`}
+  style:--sc-card-width={`${cardWidth}px`}
+  style:--sc-panel-height={`${panelSize.height}px`}
+  style:--sc-step-fold={`${MOTION.fold}ms`}
+  style:--sc-ease-spatial={SURFACE_EASE}
   style:--sc-step-strip={`${MOTION.strip}ms`}
   style:--sc-step-capsule={`${MOTION.capsule}ms`}
   style:--sc-step-travel={`${MOTION.travel}ms`}
   style:--sc-step-panel={`${MOTION.panel}ms`}
-  role="button"
-  tabindex="0"
-  {onclick}
-  {ondblclick}
-  {oncontextmenu}
-  onpointerenter={() => (hovering = true)}
-  onpointerleave={() => (hovering = false)}
+  role={showCard ? "region" : "button"} tabindex={showCard ? -1 : 0}
+  aria-label={`任务面板，${runningLabel}。${sourceDescription}`}
+  title={!showCard ? sourceDescription : undefined}
+  {onclick} {oncontextmenu}
+  ondblclick={(event) => {
+    if ((event.target as HTMLElement | null)?.closest("button, .drawer")) return;
+    ondblclick?.();
+  }}
   onkeydown={(event) => {
-    const target = event.target as HTMLElement | null;
-    // Inner buttons (action, source cycle) handle their own keys.
-    if (target?.closest("button")) return;
+    if (event.target !== event.currentTarget || !onclick) return;
     if (event.key === "Enter" || event.key === " ") {
-      event.preventDefault();
-      onclick?.();
+      event.preventDefault(); event.stopPropagation(); onclick();
     }
   }}
 >
-  <div class="ball-slot" data-orb-control="true">
-    <DockIcon
-      {surface}
-      source={task?.source ?? null}
-      swapKey={task?.id}
-      flashKey={task ? `${task.id}\u0000${task.status}` : "idle"}
-      size={orbSize(stage)}
-      drag={layout !== "expanded"}
-    />
+  <div class="ball-slot" data-orb-control="true" data-drag-afford="true">
+    <DockIcon {surface} {source} executing={running.length > 0}
+      additionalSources={Math.max(0, sources.length - 1)}
+      size={orbSize(stage)} drag />
   </div>
 
   {#if showCard}
     <div class="card" data-drag-afford={layout === "peek" ? "true" : undefined}>
-      <header
-        class="chrome"
-        data-pill-control="true"
-        role="button"
-        tabindex="0"
-        aria-label={layout === "expanded" ? "收起会话列表" : "展开会话列表"}
+      <header class="chrome" data-pill-control="true" data-drag-afford="true" role="button" tabindex="0"
+        aria-label={layout === "expanded" ? (panelPage === "widgets" ? "收起组件面板" : "收起任务列表") : (panelPage === "widgets" ? "展开组件面板" : "展开任务列表")}
         aria-expanded={layout === "expanded"}
-      >
-        {#if ballAlign === "start"}
-          <span class="ball-spacer"></span>
-        {/if}
-        {#if task}
-          {#if carouselTasks.length > 1}
-            <!-- With several running tasks the source label doubles as a
-                 manual carousel control; it never toggles the panel. -->
-            <button
-              class="source cycle"
-              class:ready={showCopy}
-              type="button"
-              title={`${carouselIndex + 1}/${carouselTasks.length} · 点击切换`}
-              aria-label={`来源 ${task.source}，${carouselIndex + 1}/${carouselTasks.length}，点击切换`}
-              onpointerdown={(event) => event.stopPropagation()}
-              onclick={(event) => {
-                event.stopPropagation();
-                carouselIndex = (carouselIndex + 1) % carouselTasks.length;
-              }}
-            >
-              {SOURCE_LABEL[task.source]}<i class="count">{carouselIndex + 1}/{carouselTasks.length}</i>
-            </button>
-          {:else}
-            <span class="source" class:ready={showCopy}>{SOURCE_LABEL[task.source]}</span>
-          {/if}
-        {/if}
+        onclick={(event) => { if (onpilltoggle) { event.stopPropagation(); onpilltoggle(); } }}
+        onkeydown={(event) => {
+          if (event.target !== event.currentTarget || !onpilltoggle) return;
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault(); event.stopPropagation(); onpilltoggle();
+          }
+        }}>
+        <span class="ball-spacer"></span>
         <div class="copy" class:ready={showCopy}>
-          {#key task?.id ?? surface.kind}
-            <div class="copy-swap">
-              <div class="line">
-                {#if headline}<strong class="headline" title={headline}>{headline}</strong>{/if}
-                {#if unread}<i class="unread" title="未读"></i>{/if}
-              </div>
-              {#if summary}
-                <p class="summary">{summary}</p>
+          {#if sharedStatusCopy}
+            <div class="shared-copy">
+              {#if peekSourceLabel}
+                <span class="source-prefix" aria-hidden={stage === "panel"}>
+                  <span class="source">{peekSourceLabel}</span>
+                </span>
               {/if}
+              <span class="shared-status" title={sourceDescription}>{runningLabel}</span>
             </div>
-          {/key}
+            <span class="sr-only">{sourceDescription}</span>
+          {:else}
+            <div class="peek-copy" aria-hidden={stage === "panel"}>
+              {#if peekSourceLabel}<span class="source">{peekSourceLabel}</span>{/if}
+              <span class="headline" title={`${sourceDescription} · ${peekLabel}`}>{peekLabel}</span>
+            </div>
+            <div class="panel-copy" aria-hidden={stage !== "panel"}>
+              <span class="execution" title={sourceDescription}>{runningLabel}</span>
+              <span class="sr-only">{sourceDescription}</span>
+            </div>
+          {/if}
         </div>
-        {#if action}
-          <button
-            class="action"
-            class:ready={showCopy}
-            type="button"
-            onclick={(event) => {
-              event.stopPropagation();
-              onaction?.();
-            }}>{action}</button
-          >
-        {/if}
-        {#if ballAlign === "end"}
-          <span class="ball-spacer"></span>
-        {/if}
+        <div class="panel-controls" inert={stage !== "panel"} aria-hidden={stage !== "panel"}>
+          <button class="panel-action" class:active={pinned} type="button"
+            aria-label={pinned ? "取消置顶" : "置顶到屏幕顶部"}
+            title={pinned ? "取消置顶" : "固定到屏幕顶部"}
+            aria-pressed={pinned} disabled={controlsBusy || !onpintoggle}
+            onpointerdown={(event) => event.stopPropagation()}
+            onclick={(event) => { event.stopPropagation(); onpintoggle?.(); }}>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6v5l3 3v2H6v-2l3-3Z" fill={pinned ? "currentColor" : "none"}/><path d="M12 13v8"/></svg>
+          </button>
+          <button class="panel-action" class:active={panelPage === "widgets"} type="button"
+            aria-label={panelPage === "widgets" ? "返回任务列表" : "打开组件面板"}
+            title={panelPage === "widgets" ? "返回任务列表" : "组件面板"}
+            aria-pressed={panelPage === "widgets"} disabled={controlsBusy || !widgetsSupported || !onpagetoggle}
+            onpointerdown={(event) => event.stopPropagation()}
+            onclick={(event) => { event.stopPropagation(); onpagetoggle?.(); }}>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 6h14M5 12h14M5 18h14"/></svg>
+          </button>
+        </div>
       </header>
 
       {#if layout === "expanded" || flow === "unfolding"}
-        <div class="drawer-slot" class:ready={stage === "panel"}>
-          <TaskDrawer {tasks} {ontaskopen} {onhoverchange} />
+        {#if notice}
+          <div class="operation-notice" role="status">{notice}</div>
+        {/if}
+        <div class="drawer-slot" class:ready={stage === "panel"} inert={stage !== "panel"}>
+          {#key panelPage}
+            <div class="page-content">
+              {#if panelPage === "widgets"}
+                <WidgetPanel active={stage === "panel" && flow === "idle"} />
+              {:else}
+                <TaskDrawer {tasks} {ontaskopen} {onhoverchange} {onmarkallread} />
+              {/if}
+            </div>
+          {/key}
         </div>
       {/if}
     </div>
@@ -255,657 +188,114 @@
 </section>
 
 <style>
-  .shell {
-    position: relative;
-    display: grid;
-    place-items: center;
-    color: var(--sc-text);
-    cursor: pointer;
-    background: transparent;
-    --sc-step-strip: var(--sc-motion-strip);
-    --sc-step-capsule: 420ms;
-    --sc-step-travel: var(--sc-motion-travel);
-    --sc-step-panel: var(--sc-motion-panel);
-    --sc-width-motion: var(--sc-step-strip);
-    --sc-height-motion: var(--sc-step-panel);
-    --sc-pill-height: 42px;
-    --sc-pill-radius: 21px;
-    --sc-pill-inset: 5px;
-    /* The pill is intentionally clearer than the drawer. The slightly denser
-       drawer keeps long task titles readable over busy desktop content. */
-    --sc-glass-pill: color-mix(in srgb, Canvas 58%, transparent);
-    --sc-glass-panel: color-mix(in srgb, Canvas 68%, transparent);
-    --sc-glass-pill-pinned: color-mix(in srgb, Canvas 63%, transparent);
-    --sc-glass-panel-pinned: color-mix(in srgb, Canvas 72%, transparent);
-  }
-
-  /* Closing has its own, deliberately visible contraction beat. The ball
-     finishes travelling before this duration starts. */
-  .shell[data-flow="closing"] {
-    --sc-width-motion: var(--sc-step-capsule);
-    --sc-height-motion: var(--sc-step-capsule);
-  }
-
-  .shell[data-synchronized-native-resize="true"] {
-    --sc-width-motion: 0ms;
-    --sc-height-motion: 0ms;
-  }
-
-  .shell.open {
-    display: block;
-  }
-
-  .shell.icon {
-    align-items: start;
-    border-radius: 50%;
-    background: transparent;
-  }
-
-  /* Give the final 48 px transparent WebView an explicit, compositor-stable
-     orb position. `left: 50%` preserves the same screen-space center while
-     the native window contracts; the 6 px top inset leaves room for the ring
-     and hover scale instead of clipping them against the window edge. */
-  .shell.icon .ball-slot {
-    position: absolute;
-    top: 6px;
-    display: grid;
-    place-items: center;
-    width: 36px;
-    height: 36px;
-  }
-
-  .shell.icon[data-ball="center"] .ball-slot {
-    left: 50%;
-    transform: translateX(-50%);
-  }
-
-  .shell.icon[data-ball="start"] .ball-slot {
-    left: 6px;
-  }
-
-  .shell.icon[data-ball="end"] .ball-slot {
-    left: calc(100% - 42px);
-  }
-
-  .ball-slot {
-    z-index: 3;
-    cursor: pointer;
-    will-change: top, left;
-  }
-
-  .shell[data-roll="clockwise"] .ball-slot :global(.orb) {
-    animation: sc-orb-roll-clockwise var(--sc-step-travel) var(--sc-ease) both;
-  }
-
-  .shell[data-roll="counterclockwise"] .ball-slot :global(.orb) {
-    animation: sc-orb-roll-counterclockwise var(--sc-step-travel) var(--sc-ease) both;
-  }
-
-  .shell.open .ball-slot {
-    position: absolute;
-    top: var(--sc-pill-inset);
-    left: 8px;
-    display: grid;
-    place-items: center;
-    width: 32px;
-    height: 32px;
-    transition:
-      top var(--sc-step-strip) var(--sc-ease),
-      left var(--sc-step-travel) var(--sc-ease);
-  }
-
-  .shell.open[data-stage="icon"] .ball-slot {
-    top: 8px;
-  }
-
-  .shell.open[data-ball="end"] .ball-slot {
-    left: calc(100% - 40px);
-  }
-
-  .shell.open[data-ball="center"] .ball-slot {
-    left: calc(50% - 16px);
-  }
-
-  .shell.open[data-stage="icon"][data-ball="start"] .ball-slot {
-    left: 8px;
-  }
-
-  .shell.open[data-stage="icon"][data-ball="end"] .ball-slot {
-    left: calc(100% - 40px);
-  }
-
-  .ball-spacer {
-    width: 32px;
-    height: 32px;
-    flex-shrink: 0;
-  }
-
-  /* Keep the hover scale attached to the orb and the visual icon stage. The
-     `.icon` container class is removed at the opening seed and restored after
-     closing; using it here made the scale reset/pop on both transitions. */
-  .shell[data-stage="icon"] .ball-slot:hover :global(.orb) {
-    transform: scale(1.06);
-    transition: transform 180ms var(--sc-ease);
-  }
-
-  .shell.preview :global(.orb) {
-    box-shadow:
-      0 0 0 3px color-mix(in srgb, var(--sc-accent) 45%, transparent),
-      0 3px 8px color-mix(in srgb, var(--sc-text) 16%, transparent);
-  }
-
-  .card {
-    position: absolute;
-    top: 0;
-    left: 0;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    height: 48px;
-    width: 48px;
-    opacity: 0;
-    transform: scale(0.76, 0.86);
-    transform-origin: 24px 24px;
-    /* One continuous rounded contour for panel → pill → orb. The browser
-       automatically clamps this radius to half the short side of the pill. */
-    border-radius: var(--sc-radius);
-    background-color: transparent;
-    border: 1px solid transparent;
-    box-shadow: none;
-    isolation: isolate;
-    will-change: top, left, width, height, opacity, transform, clip-path;
-    --sc-surface: var(--sc-glass-pill);
-    transition:
-      height var(--sc-height-motion) var(--sc-ease),
-      top var(--sc-height-motion) var(--sc-ease),
-      width var(--sc-width-motion) cubic-bezier(0.16, 1, 0.3, 1),
-      clip-path var(--sc-width-motion) cubic-bezier(0.4, 0, 0.2, 1),
-      opacity var(--sc-width-motion) cubic-bezier(0.4, 0, 0.2, 1),
-      transform var(--sc-width-motion) cubic-bezier(0.16, 1.12, 0.3, 1),
-      background-color 140ms ease-out,
-      border-color 180ms ease-out,
-      box-shadow var(--sc-width-motion) ease-out,
-      left var(--sc-width-motion) var(--sc-ease);
-  }
-
-  /* Specular sheen: a white bloom on the top-left and bottom-right corners. */
-  .card::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    z-index: 1;
-    border-radius: inherit;
-    pointer-events: none;
-    opacity: 0;
-    background:
-      radial-gradient(ellipse 92% 86% at 4% -8%, rgb(255 255 255 / 52%), transparent 46%),
-      radial-gradient(ellipse 78% 72% at 98% 108%, rgb(255 255 255 / 24%), transparent 48%);
-    box-shadow:
-      inset 1px 1px 0 rgb(255 255 255 / 42%),
-      inset -1px -1px 0 rgb(255 255 255 / 16%);
-    transition: opacity 180ms ease-out;
-  }
-
-  /* 1px glass rim, brightest at the same two corners. */
-  .card::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    z-index: 3;
-    border-radius: inherit;
-    pointer-events: none;
-    opacity: 0;
-    padding: 1px;
-    background: linear-gradient(
-      135deg,
-      rgb(255 255 255 / 68%) 0%,
-      rgb(255 255 255 / 0%) 28%,
-      rgb(255 255 255 / 0%) 72%,
-      rgb(255 255 255 / 34%) 100%
-    );
-    mask:
-      linear-gradient(#fff 0 0) content-box,
-      linear-gradient(#fff 0 0);
-    mask-composite: exclude;
-    -webkit-mask:
-      linear-gradient(#fff 0 0) content-box,
-      linear-gradient(#fff 0 0);
-    -webkit-mask-composite: xor;
-    transition: opacity 180ms ease-out;
-  }
-
-  .shell[data-ball="end"] .card {
-    transform-origin: calc(100% - 24px) 24px;
-  }
-
-  .shell[data-ball="center"] .card {
-    transform-origin: 50% 24px;
-  }
-
-  .shell[data-ball="end"][data-stage="icon"] .card {
-    left: calc(100% - 48px);
-  }
-
-  .shell[data-ball="center"][data-stage="icon"] .card {
-    left: calc(50% - 24px);
-  }
-
-  .shell[data-stage="strip"] .card,
-  .shell[data-stage="panel"] .card {
-    width: var(--sc-card-width);
-    opacity: 1;
-    transform: scale(1);
-    background-color: var(--sc-surface);
-    background-image:
-      radial-gradient(ellipse 110% 82% at 12% -20%, rgb(255 255 255 / 20%), transparent 52%),
-      linear-gradient(
-        165deg,
-        rgb(255 255 255 / 10%) 0%,
-        transparent 42%,
-        transparent 66%,
-        rgb(0 0 0 / 10%) 100%
-      );
-    border-color: color-mix(in srgb, white 26%, var(--sc-border));
-    box-shadow:
-      0 18px 46px rgb(0 0 0 / 30%),
-      inset 0 1px 0 rgb(255 255 255 / 18%),
-      inset 0 -1px 0 rgb(255 255 255 / 6%);
-    -webkit-backdrop-filter: blur(28px) saturate(1.48) contrast(1.04);
-    backdrop-filter: blur(28px) saturate(1.48) contrast(1.04);
-    left: 0;
-  }
-
-  .shell[data-stage="strip"] .card {
-    --sc-surface: var(--sc-glass-pill);
-  }
-
-  .shell[data-stage="panel"] .card {
-    --sc-surface: var(--sc-glass-panel);
-  }
-
-  .shell[data-stage="strip"] .card::before,
-  .shell[data-stage="panel"] .card::before,
-  .shell[data-stage="strip"] .card::after,
-  .shell[data-stage="panel"] .card::after {
-    opacity: 1;
-  }
-
-  /* Pinned surfaces get a little more tint to resist Windows' live-move frame,
-     but remain translucent so they retain the same glass material. */
-  .shell[data-pinned="true"][data-stage="strip"] .card {
-    --sc-surface: var(--sc-glass-pill-pinned);
-  }
-
-  .shell[data-pinned="true"][data-stage="panel"] .card {
-    --sc-surface: var(--sc-glass-panel-pinned);
-  }
-
-  /* A top-docked pill grows symmetrically out of the centered orb. Its 32 px
-     seed stays fully behind the ball, then both ends visibly expand from —
-     and contract back into — that ball instead of flashing a 48 px halo. */
-  .shell.open[data-dock="top"] .card {
-    left: 0;
-    width: var(--sc-card-width);
-    opacity: 1;
-    clip-path: inset(0 calc(50% - 16px) round 16px);
-    border-radius: var(--sc-radius);
-    background-color: var(--sc-surface);
-    border-color: color-mix(in srgb, white 26%, var(--sc-border));
-  }
-
-  .shell.open[data-dock="top"][data-stage="icon"] .card {
-    left: 0;
-    transform: scaleY(0.82);
-  }
-
-  .shell.open[data-dock="top"][data-stage="strip"] .card {
-    clip-path: inset(0 round var(--sc-radius));
-    transform: scaleY(1);
-  }
-
-  .shell.open[data-dock="top"][data-stage="panel"] .card {
-    clip-path: inset(0 round var(--sc-radius));
-    transform: scaleY(1);
-  }
-
-  .shell.open[data-dock="top"][data-stage="strip"] .card::before,
-  .shell.open[data-dock="top"][data-stage="panel"] .card::before,
-  .shell.open[data-dock="top"][data-stage="strip"] .card::after,
-  .shell.open[data-dock="top"][data-stage="panel"] .card::after {
-    opacity: 1;
-  }
-
-  .shell[data-stage="strip"] .card {
-    height: var(--sc-pill-height);
-    /* The native peek clip is a few pixels taller than the visible pill so the
-       orb ring is not shaved off. An outer shadow is still clipped by that
-       rectangular window and shows up as four faint corners. */
-    box-shadow:
-      inset 0 1px 0 rgb(255 255 255 / 22%),
-      inset 0 -1px 0 rgb(255 255 255 / 7%);
-  }
-
-  .shell[data-layout="peek"] .card {
-    cursor: grab;
-  }
-
-  .shell[data-layout="peek"] .card:active {
-    cursor: grabbing;
-  }
-
-  .shell[data-stage="panel"] .card {
-    height: 100%;
-  }
-
-  /* The transparent WebView backing surface can deliberately remain 448 px
-     tall after the native peek HWND has contracted to its 48 px clip. Keep
-     every capsule-close frame in that top 48 px band; centering against the
-     backing surface moves the still-animating card to y≈203 and makes the
-     desktop capsule look as though it vanished in one frame. */
-  .shell[data-flow="closing"][data-stage="strip"] .card {
-    top: 0;
-    transform-origin: center center;
-  }
-
-  .shell[data-flow="closing"][data-stage="icon"] .card {
-    top: 3px;
-    transform-origin: center center;
-    /* The glass surface must survive until it is completely hidden behind the
-       orb. Dropping these stage-only properties caused the one-frame flash. */
-    background-color: var(--sc-surface);
-    background-image:
-      radial-gradient(ellipse 110% 82% at 12% -20%, rgb(255 255 255 / 20%), transparent 52%),
-      linear-gradient(
-        165deg,
-        rgb(255 255 255 / 10%) 0%,
-        transparent 42%,
-        transparent 66%,
-        rgb(0 0 0 / 10%) 100%
-      );
-    border-color: color-mix(in srgb, white 26%, var(--sc-border));
-    box-shadow:
-      inset 0 1px 0 rgb(255 255 255 / 22%),
-      inset 0 -1px 0 rgb(255 255 255 / 7%);
-    -webkit-backdrop-filter: blur(28px) saturate(1.48) contrast(1.04);
-    backdrop-filter: blur(28px) saturate(1.48) contrast(1.04);
-  }
-
-  .shell[data-flow="closing"][data-stage="icon"] .card::before,
-  .shell[data-flow="closing"][data-stage="icon"] .card::after {
-    opacity: 1;
-  }
-
-  /* Top/pinned mode uses real centered width contraction instead of a large
-     card plus clip-path. WebView2 can snap the calc() clip inset, while width
-     + left interpolate reliably: both rounded ends now meet behind the orb. */
-  .shell.open[data-dock="top"][data-flow="closing"][data-stage="icon"] .card {
-    left: calc(50% - 16px);
-    top: 8px;
-    width: 32px;
-    height: 32px;
-    opacity: 1;
-    transform: scale(1);
-    clip-path: inset(0 round var(--sc-radius));
-  }
-
-  .shell[data-pinned="true"][data-flow="closing"][data-stage="icon"] .card {
-    --sc-surface: var(--sc-glass-pill-pinned);
-  }
-
-  .shell[data-flow="closing"]:not([data-dock="top"])[data-stage="icon"] .card {
-    left: calc(50% - 24px);
-    top: 3px;
-    height: var(--sc-pill-height);
-    transform: scale(1);
-  }
-
-  @keyframes sc-orb-roll-clockwise {
-    from {
-      transform: rotate(0turn);
-    }
-    to {
-      transform: rotate(1turn);
-    }
-  }
-
-  @keyframes sc-orb-roll-counterclockwise {
-    from {
-      transform: rotate(0turn);
-    }
-    to {
-      transform: rotate(-1turn);
-    }
-  }
-
-  .chrome {
-    position: relative;
-    z-index: 2;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    overflow: hidden;
-    min-height: var(--sc-pill-height);
-    padding: var(--sc-pill-inset) 10px;
-  }
-
-  .copy,
-  .source,
-  .action {
-    opacity: 0;
-    transition: opacity 180ms var(--sc-ease);
-  }
-
-  .copy.ready,
-  .source.ready,
-  .action.ready {
-    opacity: 1;
-  }
-
-  .drawer-slot {
-    position: relative;
-    z-index: 2;
-    opacity: 0;
-    transform: scaleY(0.965);
-    transform-origin: center center;
-    transition:
-      opacity 300ms ease,
-      transform var(--sc-step-panel) cubic-bezier(0.4, 0, 0.2, 1);
-  }
-
-  .drawer-slot.ready {
-    opacity: 1;
-    transform: translateY(0) scaleY(1);
-  }
-
-  .shell[data-flow="folding"] .drawer-slot {
-    opacity: 0;
-    transform: scaleY(0.965);
-  }
-
-  .copy {
-    min-width: 0;
-    flex: 1;
-    overflow: hidden;
-  }
-
-  /* The source keeps its own non-shrinking column. The conversation title is
-     centered inside the remaining safe area and ellipsizes there, so it can
-     never paint across the AI tool name. */
-  .shell[data-pinned="true"][data-stage="strip"] .line {
-    justify-content: center;
-  }
-
-  .shell[data-pinned="true"][data-stage="strip"] .summary {
-    text-align: center;
-  }
-
-  /* A centered notch can cover the middle of a pinned pill. Compatibility
-     mode confines copy to the right-hand safe area and lets long headlines
-     ellipsize there instead of flowing back underneath the notch. */
-  .shell[data-pinned="true"][data-dynamic-island="true"] .copy {
-    flex: 0 1 34%;
-    max-width: 34%;
-    margin-left: auto;
-  }
-
-  .shell[data-pinned="true"][data-dynamic-island="true"][data-has-action="true"] .copy {
-    flex-basis: 34%;
-  }
-
-  .shell[data-pinned="true"][data-dynamic-island="true"] .line {
-    justify-content: flex-end;
-  }
-
-  .shell[data-pinned="true"][data-dynamic-island="true"] .summary {
-    text-align: right;
-  }
-
-  .copy-swap {
-    min-width: 0;
-    overflow: hidden;
-    animation: sc-copy-swap 180ms var(--sc-ease) both;
-  }
-
-  .drawer-slot {
-    min-height: 0;
-    flex: 1;
-    display: flex;
-  }
-
-  .drawer-slot :global(.drawer) {
-    flex: 1;
-  }
-
-  .line {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    min-width: 0;
-    overflow: hidden;
-  }
-
-  .source {
-    flex-shrink: 0;
-    font-size: 10px;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--sc-muted);
-  }
-
-  /* The source doubles as a carousel control while several tasks are running. */
-  .source.cycle {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    padding: 3px 5px;
-    border: 0;
-    border-radius: 6px;
-    background: transparent;
-    color: inherit;
-    font-family: inherit;
-    cursor: pointer;
-    transition:
-      background-color 120ms ease,
-      color 120ms ease;
-  }
-
-  .source.cycle:hover,
-  .source.cycle:focus-visible {
-    background: color-mix(in srgb, var(--sc-text) 10%, transparent);
-    color: var(--sc-text);
-  }
-
-  .source.cycle:focus-visible {
-    outline: 0;
-  }
-
-  .source.cycle .count {
-    font-size: 8.5px;
+  @font-face {
+    font-family: "SpringCat Sans";
+    src: url("../../assets/fonts/NotoSansSC-VF.ttf") format("truetype");
     font-style: normal;
-    font-weight: 600;
-    letter-spacing: 0.02em;
-    font-variant-numeric: tabular-nums;
-    color: color-mix(in srgb, var(--sc-muted) 75%, transparent);
+    font-weight: 100 900;
+    font-display: swap;
   }
-
-  /* Keep the provider label beside the orb's inner edge. When the orb travels
-     to the right end, move the label after the flexible copy and any action;
-     the spacer remains last so the label sits immediately left of the orb. */
-  .shell[data-ball="end"] .source {
-    order: 1;
+  .shell {
+    --sc-bg: #000; --sc-surface: #000; --sc-text: #f5f5f5;
+    --sc-muted: #a3a3a3; --sc-border: #292929; --sc-accent: #c7c7c7;
+    --sc-working: #a6bfe3; --sc-waiting: #d9b779;
+    --sc-completed: #9cbca9; --sc-failed: #db9698;
+    --sc-orb-bg: #000; --sc-orb-text: #f5f5f5; --sc-orb-line: #404040; --sc-orb-working: #a6bfe3;
+    --sc-row-hover: rgba(255,255,255,.06); --sc-row-pressed: rgba(255,255,255,.09);
+    --sc-radius: 16px; --sc-pill-height: 42px;
+    --sc-width-motion: var(--sc-step-strip); --sc-height-motion: var(--sc-step-panel);
+    position: relative; color: var(--sc-text); background: transparent;
+    font-family: "SpringCat Sans", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+    font-synthesis: none; font-size: 13px; line-height: 20px;
+    container-type: inline-size;
   }
-
-  .shell[data-ball="end"] .ball-spacer {
-    order: 2;
+  .shell:focus-visible { outline: 2px solid var(--sc-accent); outline-offset: -2px; border-radius: 24px; }
+  .shell { --sc-surface-left: 0px; --sc-card-top: 0px; }
+  .shell[data-dock="top"] { --sc-surface-left: calc((100% - var(--sc-card-width)) / 2); }
+  .shell[data-dock="right"] { --sc-surface-left: calc(100% - var(--sc-card-width)); }
+  .shell[data-fixed-native-surface="true"][data-dock="left"] { --sc-surface-left: calc(50% - 24px); }
+  .shell[data-fixed-native-surface="true"][data-dock="right"] { --sc-surface-left: calc(50% + 24px - var(--sc-card-width)); }
+  .shell[data-stage="icon"] { --sc-card-top: 6px; }
+  .shell[data-stage="icon"][data-ball="start"] { --sc-surface-left: 6px; }
+  .shell[data-stage="icon"][data-ball="center"] { --sc-surface-left: calc(50% - 18px); }
+  .shell[data-stage="icon"][data-ball="end"] { --sc-surface-left: calc(100% - 42px); }
+  .shell[data-flow="unfolding"] { --sc-width-motion: var(--sc-step-panel); }
+  .shell[data-flow="folding"] { --sc-width-motion: var(--sc-step-fold); --sc-height-motion: var(--sc-step-fold); }
+  .shell[data-flow="closing"] { --sc-width-motion: var(--sc-step-capsule); --sc-height-motion: var(--sc-step-capsule); }
+  .shell[data-synchronized-native-resize="true"] { --sc-width-motion: 0ms; --sc-height-motion: 0ms; }
+  .ball-slot {
+    position: absolute; z-index: 3; top: 6px; width: 36px; height: 36px;
+    display: grid; place-items: center; cursor: grab; touch-action: none;
+    left: var(--sc-surface-left);
+    transition: left var(--sc-width-motion) var(--sc-ease-spatial), top var(--sc-height-motion) var(--sc-ease-spatial);
   }
-
-  .headline {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    font-size: 13px;
-    font-weight: 650;
+  .shell.open[data-stage="strip"] .ball-slot { top: 3px; left: calc(var(--sc-surface-left) + 6px); }
+  .shell.open[data-stage="strip"][data-ball="center"] .ball-slot { left: calc(50% - 18px); }
+  .shell.open[data-stage="strip"][data-ball="end"] .ball-slot { left: calc(100% - 42px); }
+  .shell.open[data-stage="strip"][data-ball="start"][data-flow="closing"] .ball-slot { left: 6px; }
+  .shell.open[data-stage="panel"] .ball-slot { left: calc(var(--sc-surface-left) + 20px); top: 8px; }
+  .shell.preview :global(.orb) { outline: 2px solid var(--sc-accent); outline-offset: 2px; }
+  .ball-spacer { width: 28px; height: 28px; flex: none; }
+  .card {
+    position: absolute; top: var(--sc-card-top); left: var(--sc-surface-left);
+    display: flex; flex-direction: column; width: var(--sc-card-width); height: 36px;
+    overflow: hidden; border-radius: 18px; background: var(--sc-surface);
+    transition: width var(--sc-width-motion) var(--sc-ease-spatial),
+      height var(--sc-height-motion) var(--sc-ease-spatial),
+      left var(--sc-width-motion) var(--sc-ease-spatial),
+      top var(--sc-height-motion) var(--sc-ease-spatial),
+      border-radius var(--sc-height-motion) var(--sc-ease-spatial);
   }
-
-  .summary {
-    margin: 2px 0 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    font-size: 12px;
-    color: var(--sc-muted);
+  .shell[data-stage="strip"] .card { height: 42px; border-radius: 21px; }
+  .shell[data-stage="panel"] .card { height: var(--sc-panel-height); border-radius: 16px; }
+  .shell[data-pinned="true"]:not([data-stage="icon"]) .card {
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
   }
-
-  .unread {
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    background: var(--sc-completed);
-    flex-shrink: 0;
+  .chrome {
+    position: relative; display: flex; align-items: center; gap: 10px;
+    height: 42px; flex: 0 0 auto; padding: 0 10px; cursor: grab; touch-action: none;
+    transition: height var(--sc-height-motion) var(--sc-ease-spatial), padding var(--sc-width-motion) var(--sc-ease-spatial);
   }
-
-  .action {
-    flex-shrink: 0;
-    border: 0;
-    border-radius: 999px;
-    padding: 5px 10px;
-    background: var(--sc-fill);
-    color: var(--sc-text);
-    font: inherit;
-    cursor: pointer;
+  .chrome:active,.ball-slot:active { cursor: grabbing; }
+  .shell[data-stage="panel"] .chrome { height: 52px; padding-inline: 24px; }
+  .copy { position: relative; height: 20px; flex: 1; min-width: 0; opacity: 0; transition: opacity 140ms ease; }
+  .copy.ready { opacity: 1; }
+  .shared-copy { display: flex; align-items: center; height: 20px; min-width: 0; }
+  .shared-status { color: var(--sc-muted); font-size: 13px; font-weight: 400; white-space: nowrap; }
+  .source-prefix { display: inline-flex; flex: 0 1 auto; overflow: hidden; max-width: 96px; padding-right: 8px; opacity: 1; white-space: nowrap; transition: max-width var(--sc-width-motion) var(--sc-ease-spatial), padding-right var(--sc-width-motion) var(--sc-ease-spatial), opacity 140ms 80ms ease; }
+  .shell[data-stage="panel"] .source-prefix { max-width: 0; padding-right: 0; opacity: 0; transition-delay: 0ms; }
+  .peek-copy,.panel-copy { position: absolute; inset: 0; display: flex; align-items: center; gap: 8px; min-width: 0; transition: opacity 90ms ease; }
+  .peek-copy { transition-delay: 90ms; }
+  .panel-copy { opacity: 0; pointer-events: none; }
+  .shell[data-stage="panel"] .panel-copy { opacity: 1; pointer-events: auto; transition-delay: 90ms; }
+  .shell[data-stage="panel"] .peek-copy { opacity: 0; pointer-events: none; transition-delay: 0ms; }
+  .panel-controls { display: flex; align-items: center; justify-content: flex-end; gap: 6px; flex: 0 0 auto; width: 70px; max-width: 0; opacity: 0; overflow: hidden; transition: max-width var(--sc-width-motion) var(--sc-ease-spatial), opacity 140ms ease; }
+  .shell[data-stage="panel"] .panel-controls { max-width: 70px; opacity: 1; }
+  .source { color: var(--sc-muted); font-size: 12px; white-space: nowrap; }
+  .headline { color: var(--sc-text); font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .execution { font-size: 13px; color: var(--sc-muted); white-space: nowrap; }
+  .panel-action { display: grid; place-items: center; width: 32px; height: 32px; flex: none; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--sc-muted); cursor: pointer; }
+  .panel-action:hover,.panel-action.active { background: var(--sc-row-hover); color: var(--sc-text); }
+  .panel-action:disabled { opacity: .45; cursor: default; }
+  .panel-action svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+  .drawer-slot { min-height: 0; flex: 1; display: flex; opacity: 0; transform: translateY(-4px); transition: opacity 160ms ease, transform 240ms var(--sc-ease-spatial); }
+  .drawer-slot :global(.drawer) { width: 100%; flex: 1; min-height: 0; }
+  .page-content { display: flex; flex: 1; min-width: 0; min-height: 0; animation: sc-page-in 180ms 70ms ease both; }
+  @keyframes sc-page-in { from { opacity: 0; } to { opacity: 1; } }
+  .drawer-slot.ready { opacity: 1; transform: translateY(0); transition-delay: 90ms; }
+  .shell[data-flow="folding"] .drawer-slot { opacity: 0; transform: translateY(-4px); transition-delay: 0ms; transition-duration: 100ms; }
+  .operation-notice { flex: none; margin: 0 24px; padding: 8px 0; color: var(--sc-failed); font-size: 13px; line-height: 20px; }
+  .panel-action:focus-visible,.chrome:focus-visible { outline: 2px solid var(--sc-accent); outline-offset: -2px; }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; }
+  .shell[data-pinned="true"][data-dynamic-island="true"] .copy { max-width: 34%; margin-left: auto; }
+  @container (max-width: 400px) {
+    .shell[data-stage="panel"] .chrome { padding-inline: 18px; }
+    .shell.open[data-stage="panel"] .ball-slot { left: calc(var(--sc-surface-left) + 14px); }
+    .operation-notice { margin-inline: 18px; }
   }
-
-  .action:hover {
-    background: var(--sc-fill-strong);
-  }
-
-  @keyframes sc-copy-swap {
-    from {
-      opacity: 0;
-      transform: translateY(2px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
-
   @media (prefers-reduced-motion: reduce) {
-    .card,
-    .card::before,
-    .card::after,
-    .ball-slot,
-    .copy,
-    .source,
-    .action,
-    .drawer-slot {
-      transition: none;
-    }
-
-    .copy-swap,
-    .ball-slot :global(.orb) {
-      animation: none !important;
-    }
+    .page-content { animation: none; }
+    .card,.ball-slot,.copy,.drawer-slot,.chrome,.peek-copy,.panel-copy,.panel-controls,.source-prefix { transition: none !important; }
   }
 </style>

@@ -70,7 +70,7 @@ pub fn installed_bridge_path() -> PathBuf {
     data_dir().join("bin").join(bridge_name())
 }
 
-/// Best-effort location of the hook binary Codex / Cursor / Grok / Gemini should call.
+/// Best-effort location of the hook binary Codex / Cursor / Grok / Gemini / ZCode should call.
 pub fn resolve_bridge() -> Option<PathBuf> {
     let name = bridge_name();
     let mut candidates = Vec::new();

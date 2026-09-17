@@ -1,0 +1,1605 @@
+[
+  {
+    "page": "placement",
+    "id": "top-closed",
+    "title": "顶部居中 / 静默",
+    "kind": "desktop",
+    "width": 800,
+    "height": 560,
+    "availability": "交互提案",
+    "entry": "手动收起 / Escape",
+    "action": "点击进入完整面板",
+    "exit": "原锚点收束，保留未读",
+    "note": "常驻128×30；展开520宽，内容自然决定高度。顶部中心固定。",
+    "place": "top",
+    "mode": "closed"
+  },
+  {
+    "page": "placement",
+    "id": "top-summary",
+    "title": "顶部居中 / 摘要",
+    "kind": "desktop",
+    "width": 800,
+    "height": 560,
+    "availability": "交互提案",
+    "entry": "悬停 180ms 或新的重要事件",
+    "action": "点击进入完整面板",
+    "exit": "离开 220ms 后收起；持久提醒遵守通知规则",
+    "note": "常驻128×30；展开520宽，内容自然决定高度。顶部中心固定。",
+    "place": "top",
+    "mode": "summary"
+  },
+  {
+    "page": "placement",
+    "id": "top-open",
+    "title": "顶部居中 / 展开",
+    "kind": "desktop",
+    "width": 800,
+    "height": 560,
+    "availability": "交互提案",
+    "entry": "点击入口 / 键盘激活",
+    "action": "五条同级任务；超过五条分页，完整列表进入工作台",
+    "exit": "原锚点收束，保留未读",
+    "note": "常驻128×30；展开520宽，内容自然决定高度。顶部中心固定。",
+    "place": "top",
+    "mode": "open"
+  },
+  {
+    "page": "placement",
+    "id": "notch-closed",
+    "title": "Mac 刘海 / 静默",
+    "kind": "desktop",
+    "width": 800,
+    "height": 560,
+    "availability": "交互提案",
+    "entry": "手动收起 / Escape",
+    "action": "点击进入完整面板",
+    "exit": "原锚点收束，保留未读",
+    "note": "硬件刘海不可绘制内容；实际宽高读取屏幕安全区域。展开层宽520，两侧留白24。",
+    "place": "notch",
+    "mode": "closed"
+  },
+  {
+    "page": "placement",
+    "id": "notch-summary",
+    "title": "Mac 刘海 / 摘要",
+    "kind": "desktop",
+    "width": 800,
+    "height": 560,
+    "availability": "交互提案",
+    "entry": "悬停 180ms 或新的重要事件",
+    "action": "点击进入完整面板",
+    "exit": "离开 220ms 后收起；持久提醒遵守通知规则",
+    "note": "硬件刘海不可绘制内容；实际宽高读取屏幕安全区域。展开层宽520，两侧留白24。",
+    "place": "notch",
+    "mode": "summary"
+  },
+  {
+    "page": "placement",
+    "id": "notch-open",
+    "title": "Mac 刘海 / 展开",
+    "kind": "desktop",
+    "width": 800,
+    "height": 560,
+    "availability": "交互提案",
+    "entry": "点击入口 / 键盘激活",
+    "action": "五条同级任务；超过五条分页，完整列表进入工作台",
+    "exit": "原锚点收束，保留未读",
+    "note": "硬件刘海不可绘制内容；实际宽高读取屏幕安全区域。展开层宽520，两侧留白24。",
+    "place": "notch",
+    "mode": "open"
+  },
+  {
+    "page": "placement",
+    "id": "left-closed",
+    "title": "左侧贴边 / 静默",
+    "kind": "desktop",
+    "width": 800,
+    "height": 560,
+    "availability": "交互提案",
+    "entry": "手动收起 / Escape",
+    "action": "点击进入完整面板",
+    "exit": "原锚点收束，保留未读",
+    "note": "常驻球保持36；展开宽520并向桌面内侧避让，五条同级任务同屏可见。",
+    "place": "left",
+    "mode": "closed"
+  },
+  {
+    "page": "placement",
+    "id": "left-summary",
+    "title": "左侧贴边 / 摘要",
+    "kind": "desktop",
+    "width": 800,
+    "height": 560,
+    "availability": "交互提案",
+    "entry": "悬停 180ms 或新的重要事件",
+    "action": "点击进入完整面板",
+    "exit": "离开 220ms 后收起；持久提醒遵守通知规则",
+    "note": "常驻球保持36；展开宽520并向桌面内侧避让，五条同级任务同屏可见。",
+    "place": "left",
+    "mode": "summary"
+  },
+  {
+    "page": "placement",
+    "id": "left-open",
+    "title": "左侧贴边 / 展开",
+    "kind": "desktop",
+    "width": 800,
+    "height": 560,
+    "availability": "交互提案",
+    "entry": "点击入口 / 键盘激活",
+    "action": "五条同级任务；超过五条分页，完整列表进入工作台",
+    "exit": "原锚点收束，保留未读",
+    "note": "常驻球保持36；展开宽520并向桌面内侧避让，五条同级任务同屏可见。",
+    "place": "left",
+    "mode": "open"
+  },
+  {
+    "page": "placement",
+    "id": "right-closed",
+    "title": "右侧贴边 / 静默",
+    "kind": "desktop",
+    "width": 800,
+    "height": 560,
+    "availability": "交互提案",
+    "entry": "手动收起 / Escape",
+    "action": "点击进入完整面板",
+    "exit": "原锚点收束，保留未读",
+    "note": "常驻球保持36；展开宽520并向桌面内侧避让，五条同级任务同屏可见。",
+    "place": "right",
+    "mode": "closed"
+  },
+  {
+    "page": "placement",
+    "id": "right-summary",
+    "title": "右侧贴边 / 摘要",
+    "kind": "desktop",
+    "width": 800,
+    "height": 560,
+    "availability": "交互提案",
+    "entry": "悬停 180ms 或新的重要事件",
+    "action": "点击进入完整面板",
+    "exit": "离开 220ms 后收起；持久提醒遵守通知规则",
+    "note": "常驻球保持36；展开宽520并向桌面内侧避让，五条同级任务同屏可见。",
+    "place": "right",
+    "mode": "summary"
+  },
+  {
+    "page": "placement",
+    "id": "right-open",
+    "title": "右侧贴边 / 展开",
+    "kind": "desktop",
+    "width": 800,
+    "height": 560,
+    "availability": "交互提案",
+    "entry": "点击入口 / 键盘激活",
+    "action": "五条同级任务；超过五条分页，完整列表进入工作台",
+    "exit": "原锚点收束，保留未读",
+    "note": "常驻球保持36；展开宽520并向桌面内侧避让，五条同级任务同屏可见。",
+    "place": "right",
+    "mode": "open"
+  },
+  {
+    "page": "placement",
+    "id": "free-drag",
+    "title": "自由拖动与吸附预览",
+    "kind": "desktop",
+    "width": 800,
+    "height": 460,
+    "availability": "交互提案",
+    "entry": "按住入口并拖动",
+    "action": "接近顶部或左右边缘显示吸附预览",
+    "exit": "松开确认；Escape 恢复拖动前位置",
+    "note": "预览不抢占其他窗口；跨屏后依据目标屏幕安全区域重算。",
+    "place": "free",
+    "mode": "closed",
+    "ghost": true
+  },
+  {
+    "page": "states",
+    "id": "status-idle",
+    "title": "安静待命",
+    "kind": "status",
+    "width": 440,
+    "height": 250,
+    "availability": "已有能力 / 新样式",
+    "entry": "来源状态变化或用户操作",
+    "action": "主动展开查看",
+    "exit": "遵守当前模式与用户意图",
+    "note": "列表中所有状态同级；紧凑入口的状态汇总与列表排序分离。当前代码的紧凑主状态为运行优先。",
+    "status": "idle"
+  },
+  {
+    "page": "states",
+    "id": "status-running",
+    "title": "进行中",
+    "kind": "status",
+    "width": 440,
+    "height": 250,
+    "availability": "已有能力 / 新样式",
+    "entry": "来源状态变化或用户操作",
+    "action": "主动展开查看",
+    "exit": "遵守当前模式与用户意图",
+    "note": "列表中所有状态同级；紧凑入口的状态汇总与列表排序分离。当前代码的紧凑主状态为运行优先。",
+    "status": "running"
+  },
+  {
+    "page": "states",
+    "id": "status-many",
+    "title": "3 个任务进行中",
+    "kind": "status",
+    "width": 440,
+    "height": 250,
+    "availability": "已有能力 / 新样式",
+    "entry": "来源状态变化或用户操作",
+    "action": "主动展开查看",
+    "exit": "遵守当前模式与用户意图",
+    "note": "列表中所有状态同级；紧凑入口的状态汇总与列表排序分离。当前代码的紧凑主状态为运行优先。",
+    "status": "many"
+  },
+  {
+    "page": "states",
+    "id": "status-waiting",
+    "title": "待确认",
+    "kind": "status",
+    "width": 440,
+    "height": 250,
+    "availability": "已有能力 / 新样式",
+    "entry": "来源状态变化或用户操作",
+    "action": "回到原对话处理",
+    "exit": "遵守当前模式与用户意图",
+    "note": "列表中所有状态同级；紧凑入口的状态汇总与列表排序分离。当前代码的紧凑主状态为运行优先。",
+    "status": "waiting"
+  },
+  {
+    "page": "states",
+    "id": "status-completed",
+    "title": "已完成",
+    "kind": "status",
+    "width": 440,
+    "height": 250,
+    "availability": "已有能力 / 新样式",
+    "entry": "来源状态变化或用户操作",
+    "action": "主动展开查看",
+    "exit": "5 秒后收起并保留未读",
+    "note": "列表中所有状态同级；紧凑入口的状态汇总与列表排序分离。当前代码的紧凑主状态为运行优先。",
+    "status": "completed"
+  },
+  {
+    "page": "states",
+    "id": "status-merged",
+    "title": "3 个任务已完成",
+    "kind": "status",
+    "width": 440,
+    "height": 250,
+    "availability": "已有能力 / 新样式",
+    "entry": "来源状态变化或用户操作",
+    "action": "主动展开查看",
+    "exit": "5 秒后收起并保留未读",
+    "note": "列表中所有状态同级；紧凑入口的状态汇总与列表排序分离。当前代码的紧凑主状态为运行优先。",
+    "status": "merged"
+  },
+  {
+    "page": "states",
+    "id": "status-failed",
+    "title": "失败",
+    "kind": "status",
+    "width": 440,
+    "height": 250,
+    "availability": "已有能力 / 新样式",
+    "entry": "来源状态变化或用户操作",
+    "action": "回到原对话处理",
+    "exit": "遵守当前模式与用户意图",
+    "note": "列表中所有状态同级；紧凑入口的状态汇总与列表排序分离。当前代码的紧凑主状态为运行优先。",
+    "status": "failed"
+  },
+  {
+    "page": "states",
+    "id": "status-cancelled",
+    "title": "已取消",
+    "kind": "status",
+    "width": 440,
+    "height": 250,
+    "availability": "已有能力 / 新样式",
+    "entry": "来源状态变化或用户操作",
+    "action": "主动展开查看",
+    "exit": "遵守当前模式与用户意图",
+    "note": "列表中所有状态同级；紧凑入口的状态汇总与列表排序分离。当前代码的紧凑主状态为运行优先。",
+    "status": "cancelled"
+  },
+  {
+    "page": "states",
+    "id": "status-muted",
+    "title": "静音中 · 58 分钟",
+    "kind": "status",
+    "width": 440,
+    "height": 250,
+    "availability": "已有能力 / 新样式",
+    "entry": "来源状态变化或用户操作",
+    "action": "主动展开查看",
+    "exit": "一小时到期或手动恢复",
+    "note": "列表中所有状态同级；紧凑入口的状态汇总与列表排序分离。当前代码的紧凑主状态为运行优先。",
+    "status": "muted"
+  },
+  {
+    "page": "states",
+    "id": "status-focus",
+    "title": "专注中 · 2 条未读",
+    "kind": "status",
+    "width": 440,
+    "height": 250,
+    "availability": "交互提案",
+    "entry": "来源状态变化或用户操作",
+    "action": "主动展开查看",
+    "exit": "遵守当前模式与用户意图",
+    "note": "列表中所有状态同级；紧凑入口的状态汇总与列表排序分离。当前代码的紧凑主状态为运行优先。",
+    "status": "focus"
+  },
+  {
+    "page": "states",
+    "id": "status-loading",
+    "title": "正在同步状态",
+    "kind": "status",
+    "width": 440,
+    "height": 250,
+    "availability": "交互提案",
+    "entry": "来源状态变化或用户操作",
+    "action": "主动展开查看",
+    "exit": "遵守当前模式与用户意图",
+    "note": "列表中所有状态同级；紧凑入口的状态汇总与列表排序分离。当前代码的紧凑主状态为运行优先。",
+    "status": "loading"
+  },
+  {
+    "page": "states",
+    "id": "status-disconnected",
+    "title": "尚未连接工具",
+    "kind": "status",
+    "width": 440,
+    "height": 250,
+    "availability": "已有能力 / 新样式",
+    "entry": "来源状态变化或用户操作",
+    "action": "主动展开查看",
+    "exit": "遵守当前模式与用户意图",
+    "note": "列表中所有状态同级；紧凑入口的状态汇总与列表排序分离。当前代码的紧凑主状态为运行优先。",
+    "status": "disconnected"
+  },
+  {
+    "page": "workspace",
+    "id": "dynamic",
+    "title": "任务动态",
+    "kind": "dynamic",
+    "width": 860,
+    "height": 560,
+    "availability": "已有能力 / 新样式",
+    "entry": "工作台对应入口",
+    "action": "主要动作优先，恢复路径可见",
+    "exit": "返回动态；关闭独立窗口不退出常驻入口",
+    "note": "较长内容使用独立工作窗口；常驻胶囊体积保持稳定。"
+  },
+  {
+    "page": "workspace",
+    "id": "detail",
+    "title": "任务详情 / 待确认",
+    "kind": "detail",
+    "width": 860,
+    "height": 560,
+    "availability": "设计补齐",
+    "entry": "点击待处理任务",
+    "action": "主要动作优先，恢复路径可见",
+    "exit": "返回动态；关闭独立窗口不退出常驻入口",
+    "note": "较长内容使用独立工作窗口；常驻胶囊体积保持稳定。"
+  },
+  {
+    "page": "workspace",
+    "id": "failed-detail",
+    "title": "任务详情 / 失败",
+    "kind": "failed-detail",
+    "width": 860,
+    "height": 560,
+    "availability": "设计补齐",
+    "entry": "工作台对应入口",
+    "action": "主要动作优先，恢复路径可见",
+    "exit": "返回动态；关闭独立窗口不退出常驻入口",
+    "note": "较长内容使用独立工作窗口；常驻胶囊体积保持稳定。"
+  },
+  {
+    "page": "workspace",
+    "id": "history",
+    "title": "任务历史与筛选",
+    "kind": "history",
+    "width": 860,
+    "height": 560,
+    "availability": "设计补齐",
+    "entry": "工作台对应入口",
+    "action": "主要动作优先，恢复路径可见",
+    "exit": "返回动态；关闭独立窗口不退出常驻入口",
+    "note": "较长内容使用独立工作窗口；常驻胶囊体积保持稳定。"
+  },
+  {
+    "page": "workspace",
+    "id": "empty",
+    "title": "已连接但暂无任务",
+    "kind": "empty",
+    "width": 860,
+    "height": 560,
+    "availability": "已有能力 / 新样式",
+    "entry": "工作台对应入口",
+    "action": "主要动作优先，恢复路径可见",
+    "exit": "返回动态；关闭独立窗口不退出常驻入口",
+    "note": "较长内容使用独立工作窗口；常驻胶囊体积保持稳定。"
+  },
+  {
+    "page": "workspace",
+    "id": "loading",
+    "title": "任务读取中",
+    "kind": "loading",
+    "width": 860,
+    "height": 560,
+    "availability": "设计补齐",
+    "entry": "工作台对应入口",
+    "action": "主要动作优先，恢复路径可见",
+    "exit": "返回动态；关闭独立窗口不退出常驻入口",
+    "note": "较长内容使用独立工作窗口；常驻胶囊体积保持稳定。"
+  },
+  {
+    "page": "workspace",
+    "id": "error",
+    "title": "无法打开原对话",
+    "kind": "error",
+    "width": 860,
+    "height": 560,
+    "availability": "设计补齐",
+    "entry": "工作台对应入口",
+    "action": "主要动作优先，恢复路径可见",
+    "exit": "返回动态；关闭独立窗口不退出常驻入口",
+    "note": "打开结果未确认前保留未读；精确跳转能力因来源而异。"
+  },
+  {
+    "page": "workspace",
+    "id": "future",
+    "title": "未来动作入口",
+    "kind": "future",
+    "width": 860,
+    "height": 560,
+    "availability": "未来概念",
+    "entry": "工作台对应入口",
+    "action": "概念入口，未连接实际执行能力",
+    "exit": "返回动态；关闭独立窗口不退出常驻入口",
+    "note": "较长内容使用独立工作窗口；常驻胶囊体积保持稳定。"
+  },
+  {
+    "page": "settings",
+    "id": "settings-tools",
+    "title": "AI 工具连接",
+    "kind": "tools",
+    "width": 860,
+    "height": 620,
+    "availability": "已有能力 / 新样式",
+    "entry": "设置对应分类",
+    "action": "修改后自动保存并反馈结果",
+    "exit": "返回分类；关闭设置不退出程序",
+    "note": "hook 工具和只读监听工具的配置路径不同；保留原有第三方配置。"
+  },
+  {
+    "page": "settings",
+    "id": "settings-tool",
+    "title": "工具详情 / 已连接",
+    "kind": "tool",
+    "width": 860,
+    "height": 620,
+    "availability": "已有能力 / 新样式",
+    "entry": "设置对应分类",
+    "action": "修改后自动保存并反馈结果",
+    "exit": "返回分类；关闭设置不退出程序",
+    "note": "hook 工具和只读监听工具的配置路径不同；保留原有第三方配置。"
+  },
+  {
+    "page": "settings",
+    "id": "settings-connecting",
+    "title": "工具详情 / 连接中",
+    "kind": "connecting",
+    "width": 860,
+    "height": 620,
+    "availability": "已有能力 / 新样式",
+    "entry": "设置对应分类",
+    "action": "等待；不重复提交",
+    "exit": "返回分类；关闭设置不退出程序",
+    "note": "hook 工具和只读监听工具的配置路径不同；保留原有第三方配置。"
+  },
+  {
+    "page": "settings",
+    "id": "settings-repair",
+    "title": "工具详情 / 修复",
+    "kind": "repair",
+    "width": 860,
+    "height": 620,
+    "availability": "已有能力 / 新样式",
+    "entry": "设置对应分类",
+    "action": "修复 / 手动配置 / 查看诊断",
+    "exit": "返回分类；关闭设置不退出程序",
+    "note": "hook 工具和只读监听工具的配置路径不同；保留原有第三方配置。"
+  },
+  {
+    "page": "settings",
+    "id": "settings-passive",
+    "title": "工具详情 / 只读监听",
+    "kind": "passive",
+    "width": 860,
+    "height": 620,
+    "availability": "已有能力 / 新样式",
+    "entry": "设置对应分类",
+    "action": "修改后自动保存并反馈结果",
+    "exit": "返回分类；关闭设置不退出程序",
+    "note": "hook 工具和只读监听工具的配置路径不同；保留原有第三方配置。"
+  },
+  {
+    "page": "settings",
+    "id": "settings-appearance",
+    "title": "外观与停靠",
+    "kind": "appearance",
+    "width": 860,
+    "height": 620,
+    "availability": "设计补齐",
+    "entry": "设置对应分类",
+    "action": "修改后自动保存并反馈结果",
+    "exit": "返回分类；关闭设置不退出程序",
+    "note": "hook 工具和只读监听工具的配置路径不同；保留原有第三方配置。"
+  },
+  {
+    "page": "settings",
+    "id": "settings-notification",
+    "title": "通知与专注",
+    "kind": "notification",
+    "width": 860,
+    "height": 620,
+    "availability": "已有能力 / 新样式",
+    "entry": "设置对应分类",
+    "action": "修改后自动保存并反馈结果",
+    "exit": "返回分类；关闭设置不退出程序",
+    "note": "hook 工具和只读监听工具的配置路径不同；保留原有第三方配置。"
+  },
+  {
+    "page": "settings",
+    "id": "settings-general",
+    "title": "常规设置",
+    "kind": "general",
+    "width": 860,
+    "height": 620,
+    "availability": "已有能力 / 新样式",
+    "entry": "设置对应分类",
+    "action": "修改后自动保存并反馈结果",
+    "exit": "返回分类；关闭设置不退出程序",
+    "note": "hook 工具和只读监听工具的配置路径不同；保留原有第三方配置。"
+  },
+  {
+    "page": "settings",
+    "id": "settings-storage",
+    "title": "本地存储与隐私",
+    "kind": "storage",
+    "width": 860,
+    "height": 620,
+    "availability": "已有能力 / 新样式",
+    "entry": "设置对应分类",
+    "action": "修改后自动保存并反馈结果",
+    "exit": "返回分类；关闭设置不退出程序",
+    "note": "hook 工具和只读监听工具的配置路径不同；保留原有第三方配置。"
+  },
+  {
+    "page": "settings",
+    "id": "settings-restart",
+    "title": "存储迁移 / 重启提示",
+    "kind": "restart",
+    "width": 860,
+    "height": 620,
+    "availability": "已有能力 / 新样式",
+    "entry": "设置对应分类",
+    "action": "修改后自动保存并反馈结果",
+    "exit": "返回分类；关闭设置不退出程序",
+    "note": "hook 工具和只读监听工具的配置路径不同；保留原有第三方配置。"
+  },
+  {
+    "page": "settings",
+    "id": "settings-saveerror",
+    "title": "设置保存失败",
+    "kind": "saveerror",
+    "width": 860,
+    "height": 620,
+    "availability": "设计补齐",
+    "entry": "设置对应分类",
+    "action": "修改后自动保存并反馈结果",
+    "exit": "返回分类；关闭设置不退出程序",
+    "note": "hook 工具和只读监听工具的配置路径不同；保留原有第三方配置。"
+  },
+  {
+    "page": "onboarding",
+    "id": "onboard-0",
+    "title": "欢迎与价值",
+    "kind": "onboarding",
+    "width": 720,
+    "height": 510,
+    "availability": "设计补齐",
+    "entry": "首次运行",
+    "action": "选择后继续；允许稍后设置",
+    "exit": "完成进入小体积常驻；设置中可重新调整",
+    "note": "当前版本没有首次使用向导，这组是新增设计。",
+    "step": 0
+  },
+  {
+    "page": "onboarding",
+    "id": "onboard-1",
+    "title": "选择停靠位置",
+    "kind": "onboarding",
+    "width": 720,
+    "height": 510,
+    "availability": "设计补齐",
+    "entry": "向导上一步",
+    "action": "选择后继续；允许稍后设置",
+    "exit": "完成进入小体积常驻；设置中可重新调整",
+    "note": "当前版本没有首次使用向导，这组是新增设计。",
+    "step": 1
+  },
+  {
+    "page": "onboarding",
+    "id": "onboard-2",
+    "title": "连接第一个工具",
+    "kind": "onboarding",
+    "width": 720,
+    "height": 510,
+    "availability": "设计补齐",
+    "entry": "向导上一步",
+    "action": "选择后继续；允许稍后设置",
+    "exit": "完成进入小体积常驻；设置中可重新调整",
+    "note": "当前版本没有首次使用向导，这组是新增设计。",
+    "step": 2
+  },
+  {
+    "page": "onboarding",
+    "id": "onboard-3",
+    "title": "测试提醒与完成",
+    "kind": "onboarding",
+    "width": 720,
+    "height": 510,
+    "availability": "设计补齐",
+    "entry": "向导上一步",
+    "action": "试一次提醒后开始使用",
+    "exit": "完成进入小体积常驻；设置中可重新调整",
+    "note": "当前版本没有首次使用向导，这组是新增设计。",
+    "step": 3
+  },
+  {
+    "page": "usage",
+    "id": "usage-day",
+    "title": "用量 / 日",
+    "kind": "usage",
+    "width": 900,
+    "height": 640,
+    "availability": "已有能力 / 新样式",
+    "entry": "用量与回顾",
+    "action": "切周期、选日期、查看来源与模型",
+    "exit": "返回工作台",
+    "note": "所有图中数据为示例；估算不等于实际账单，来源覆盖有差异。",
+    "period": "day"
+  },
+  {
+    "page": "usage",
+    "id": "usage-week",
+    "title": "用量 / 周",
+    "kind": "usage",
+    "width": 900,
+    "height": 640,
+    "availability": "已有能力 / 新样式",
+    "entry": "用量与回顾",
+    "action": "切周期、选日期、查看来源与模型",
+    "exit": "返回工作台",
+    "note": "所有图中数据为示例；估算不等于实际账单，来源覆盖有差异。",
+    "period": "week"
+  },
+  {
+    "page": "usage",
+    "id": "usage-month",
+    "title": "用量 / 月",
+    "kind": "usage",
+    "width": 900,
+    "height": 640,
+    "availability": "已有能力 / 新样式",
+    "entry": "用量与回顾",
+    "action": "切周期、选日期、查看来源与模型",
+    "exit": "返回工作台",
+    "note": "所有图中数据为示例；估算不等于实际账单，来源覆盖有差异。",
+    "period": "month"
+  },
+  {
+    "page": "usage",
+    "id": "usage-empty",
+    "title": "用量 / 暂无记录",
+    "kind": "usage-empty",
+    "width": 900,
+    "height": 640,
+    "availability": "已有能力 / 新样式",
+    "entry": "读取用量后",
+    "action": "检查来源或重试读取",
+    "exit": "保留已选日期范围",
+    "note": "数据缺失不伪装为零用量。分享由用户主动操作。",
+    "period": "day"
+  },
+  {
+    "page": "usage",
+    "id": "usage-error",
+    "title": "用量 / 读取失败",
+    "kind": "usage-error",
+    "width": 900,
+    "height": 640,
+    "availability": "已有能力 / 新样式",
+    "entry": "读取用量后",
+    "action": "检查来源或重试读取",
+    "exit": "保留已选日期范围",
+    "note": "数据缺失不伪装为零用量。分享由用户主动操作。",
+    "period": "day"
+  },
+  {
+    "page": "usage",
+    "id": "share",
+    "title": "用量图分享预览",
+    "kind": "share",
+    "width": 900,
+    "height": 640,
+    "availability": "已有能力 / 新样式",
+    "entry": "分享用量图",
+    "action": "预览后复制或保存图片",
+    "exit": "关闭预览返回用量",
+    "note": "数据缺失不伪装为零用量。分享由用户主动操作。",
+    "period": "day"
+  },
+  {
+    "page": "usage",
+    "id": "usage-calendar",
+    "title": "月历与日期选择",
+    "kind": "calendar",
+    "width": 900,
+    "height": 640,
+    "availability": "已有能力 / 新样式",
+    "entry": "选择日期 / 月历",
+    "action": "点击有记录日期切为当日明细",
+    "exit": "返回所选周期",
+    "note": "无记录日期与未来日期均不编造用量。",
+    "period": "month"
+  },
+  {
+    "page": "usage",
+    "id": "usage-breakdown",
+    "title": "输入、缓存、输出与模型明细",
+    "kind": "breakdown",
+    "width": 900,
+    "height": 640,
+    "availability": "已有能力 / 新样式",
+    "entry": "用量 → 来源与模型明细",
+    "action": "查看构成、来源和模型",
+    "exit": "返回所选周期",
+    "note": "缓存是输入子项，推理是输出子项；所有示例数值内部一致。",
+    "period": "day"
+  },
+  {
+    "page": "style",
+    "id": "style-themes",
+    "title": "三个主题 / 同一交互",
+    "kind": "themes",
+    "width": 800,
+    "height": 500,
+    "availability": "设计规范",
+    "entry": "同一设计系统",
+    "action": "主题只改变外观，交互和常驻尺寸一致",
+    "exit": "沿用统一状态模型",
+    "note": "按下、悬停、焦点、禁用和错误分别可识别。"
+  },
+  {
+    "page": "style",
+    "id": "style-tokens",
+    "title": "颜色与状态语义",
+    "kind": "tokens",
+    "width": 800,
+    "height": 500,
+    "availability": "设计规范",
+    "entry": "同一设计系统",
+    "action": "主题只改变外观，交互和常驻尺寸一致",
+    "exit": "沿用统一状态模型",
+    "note": "按下、悬停、焦点、禁用和错误分别可识别。"
+  },
+  {
+    "page": "style",
+    "id": "style-type",
+    "title": "文字与尺寸",
+    "kind": "type",
+    "width": 800,
+    "height": 500,
+    "availability": "设计规范",
+    "entry": "同一设计系统",
+    "action": "主题只改变外观，交互和常驻尺寸一致",
+    "exit": "沿用统一状态模型",
+    "note": "按下、悬停、焦点、禁用和错误分别可识别。"
+  },
+  {
+    "page": "style",
+    "id": "style-controls",
+    "title": "按钮与组件状态",
+    "kind": "controls",
+    "width": 800,
+    "height": 500,
+    "availability": "设计规范",
+    "entry": "同一设计系统",
+    "action": "主题只改变外观，交互和常驻尺寸一致",
+    "exit": "沿用统一状态模型",
+    "note": "按下、悬停、焦点、禁用和错误分别可识别。"
+  },
+  {
+    "page": "style",
+    "id": "style-menu",
+    "title": "右键与托盘菜单",
+    "kind": "menu",
+    "width": 800,
+    "height": 500,
+    "availability": "设计规范",
+    "entry": "同一设计系统",
+    "action": "主题只改变外观，交互和常驻尺寸一致",
+    "exit": "沿用统一状态模型",
+    "note": "按下、悬停、焦点、禁用和错误分别可识别。"
+  },
+  {
+    "page": "style",
+    "id": "style-pet",
+    "title": "智能体来源球与多来源",
+    "kind": "pet",
+    "width": 800,
+    "height": 500,
+    "availability": "设计规范",
+    "entry": "同一设计系统",
+    "action": "主题只改变外观，交互和常驻尺寸一致",
+    "exit": "沿用统一状态模型",
+    "note": "按下、悬停、焦点、禁用和错误分别可识别。"
+  },
+  {
+    "page": "style",
+    "id": "style-fields",
+    "title": "字段与特殊状态",
+    "kind": "fields",
+    "width": 800,
+    "height": 500,
+    "availability": "设计规范",
+    "entry": "输入或只读详情",
+    "action": "默认、聚焦、错误、只读与按下态区分清楚",
+    "exit": "修改有效后恢复；只读状态保持说明",
+    "note": "错误原因紧邻字段；禁用与只读使用不同语义。"
+  },
+  {
+    "page": "style",
+    "id": "style-feedback",
+    "title": "处理中、成功与失败反馈",
+    "kind": "feedback",
+    "width": 800,
+    "height": 500,
+    "availability": "已有能力 / 新样式",
+    "entry": "测试连接、复制或保存图片",
+    "action": "按结果反馈；失败时提供恢复动作",
+    "exit": "成功反馈淡出；失败保持到处理或关闭",
+    "note": "状态反馈不能掩盖结果，也不能把未完成的操作报为成功。"
+  },
+  {
+    "page": "flows",
+    "id": "resting-forms",
+    "title": "01 · 四个位置，同一套形态",
+    "kind": "flow",
+    "width": 760,
+    "height": 405,
+    "availability": "交互提案",
+    "entry": "首次定位或更换停靠方式",
+    "action": "普通顶部：紧凑胶囊 → 摘要胶囊 → 向下展开面板 → 刘海下方：可见下沿 → 下方摘要 → 向下展开面板 → 左右侧边：小球 → 向内胶囊 → 向内展开面板 → 自由浮动：小球 → 摘要 → 避让屏幕边界的展开面板",
+    "exit": "返回当前停靠位置的常驻形态。",
+    "note": "自由浮动是提案；当前持久化停靠方向仅有顶部、左侧和右侧。；位置改变不改变任务状态和未读数；顶部、侧球、摘要与刘海下沿使用同一执行亮灭语义。6 pt 刘海静默下沿只显示 4 pt 光点，悬停或展开再显示完整来源 Logo。",
+    "flow": {
+      "id": "resting-forms",
+      "title": "01 · 四个位置，同一套形态",
+      "trigger": "首次定位或更换停靠方式",
+      "steps": [
+        "普通顶部：紧凑胶囊 → 摘要胶囊 → 向下展开面板",
+        "刘海下方：可见下沿 → 下方摘要 → 向下展开面板",
+        "左右侧边：小球 → 向内胶囊 → 向内展开面板",
+        "自由浮动：小球 → 摘要 → 避让屏幕边界的展开面板"
+      ],
+      "close": "返回当前停靠位置的常驻形态。",
+      "edgeCases": [
+        "自由浮动是提案；当前持久化停靠方向仅有顶部、左侧和右侧。",
+        "位置改变不改变任务状态和未读数；顶部、侧球、摘要与刘海下沿使用同一执行亮灭语义。6 pt 刘海静默下沿只显示 4 pt 光点，悬停或展开再显示完整来源 Logo。"
+      ],
+      "status": "proposed"
+    }
+  },
+  {
+    "page": "flows",
+    "id": "hover-preview",
+    "title": "02 · 轻扫看摘要",
+    "kind": "flow",
+    "width": 760,
+    "height": 405,
+    "availability": "交互提案",
+    "entry": "指针停留在小球或紧凑胶囊",
+    "action": "悬停 180 ms 后出现一条摘要 → 指针进入摘要时保持展示 → 离开全部浮层 220 ms 后恢复原状",
+    "exit": "仅关闭悬停产生的摘要，不关闭主动打开的展开面板。",
+    "note": "180 ms 内移走不展开。；离开宽限期内返回则取消收回。；拖拽期间不触发悬停；触屏与键盘不依赖悬停。",
+    "flow": {
+      "id": "hover-preview",
+      "title": "02 · 轻扫看摘要",
+      "trigger": "指针停留在小球或紧凑胶囊",
+      "steps": [
+        "悬停 180 ms 后出现一条摘要",
+        "指针进入摘要时保持展示",
+        "离开全部浮层 220 ms 后恢复原状"
+      ],
+      "close": "仅关闭悬停产生的摘要，不关闭主动打开的展开面板。",
+      "edgeCases": [
+        "180 ms 内移走不展开。",
+        "离开宽限期内返回则取消收回。",
+        "拖拽期间不触发悬停；触屏与键盘不依赖悬停。"
+      ],
+      "status": "proposed"
+    }
+  },
+  {
+    "page": "flows",
+    "id": "click-open",
+    "title": "03 · 单击直接打开",
+    "kind": "flow",
+    "width": 760,
+    "height": 405,
+    "availability": "交互提案",
+    "entry": "点击入口、摘要空白区，或按 Enter / Space",
+    "action": "直接打开逻辑宽 520、左右内边距各 24 的展开面板，不要求先经过摘要态；高度随内容自然决定，五条任务时约 470 → 从当前位置连续展开外壳，每页最多五条同级任务与底部操作同屏，无内部滚动 → 阅读区域出现后按导航、任务行、分页与底部入口的顺序键盘访问；超过五条显示上一页、下一页和总数；全部任务入口进入完整工作台",
+    "exit": "入口切换按钮、收起按钮或 Escape 返回常驻形态。",
+    "note": "悬停摘要中点击也直接打开。；任务行点击进入同宽短详情；不同时触发外壳收起，长说明进入独立页面。；屏幕放不下时先向内避让，窄屏宽度取可用宽度减两侧安全边距。；高度不足时减少每页任务数量并分页，明确提供上一页、下一页和总数；不能缩小字号、隐藏内容或仅隐藏滚动条。",
+    "flow": {
+      "id": "click-open",
+      "title": "03 · 单击直接打开",
+      "trigger": "点击入口、摘要空白区，或按 Enter / Space",
+      "steps": [
+        "直接打开逻辑宽 520、左右内边距各 24 的展开面板，不要求先经过摘要态；高度随内容自然决定，五条任务时约 470",
+        "从当前位置连续展开外壳，每页最多五条同级任务与底部操作同屏，无内部滚动",
+        "阅读区域出现后按导航、任务行、分页与底部入口的顺序键盘访问；超过五条显示上一页、下一页和总数；全部任务入口进入完整工作台"
+      ],
+      "close": "入口切换按钮、收起按钮或 Escape 返回常驻形态。",
+      "edgeCases": [
+        "悬停摘要中点击也直接打开。",
+        "任务行点击进入同宽短详情；不同时触发外壳收起，长说明进入独立页面。",
+        "屏幕放不下时先向内避让，窄屏宽度取可用宽度减两侧安全边距。",
+        "高度不足时减少每页任务数量并分页，明确提供上一页、下一页和总数；不能缩小字号、隐藏内容或仅隐藏滚动条。"
+      ],
+      "status": "proposed"
+    }
+  },
+  {
+    "page": "flows",
+    "id": "interrupt-motion",
+    "title": "04 · 动画可以随时反向",
+    "kind": "flow",
+    "width": 760,
+    "height": 405,
+    "availability": "交互提案",
+    "entry": "展开途中再次收起，或收起途中再次打开",
+    "action": "读取当前外壳位置、尺寸与运动速度 → 立即更新目标状态 → 从当前几何状态继续运动，内容独立淡入淡出",
+    "exit": "最终停在最后一次有效操作指定的状态。",
+    "note": "第二次点击不得丢弃。；展开约 300–380 ms；收起约 220–280 ms，均为调试范围。；减少动态效果时取消空间变形。",
+    "flow": {
+      "id": "interrupt-motion",
+      "title": "04 · 动画可以随时反向",
+      "trigger": "展开途中再次收起，或收起途中再次打开",
+      "steps": [
+        "读取当前外壳位置、尺寸与运动速度",
+        "立即更新目标状态",
+        "从当前几何状态继续运动，内容独立淡入淡出"
+      ],
+      "close": "最终停在最后一次有效操作指定的状态。",
+      "edgeCases": [
+        "第二次点击不得丢弃。",
+        "展开约 300–380 ms；收起约 220–280 ms，均为调试范围。",
+        "减少动态效果时取消空间变形。"
+      ],
+      "status": "proposed"
+    }
+  },
+  {
+    "page": "flows",
+    "id": "manual-collapse",
+    "title": "05 · 手动收起优先",
+    "kind": "flow",
+    "width": 760,
+    "height": 405,
+    "availability": "交互提案",
+    "entry": "用户显式收起正在提醒的展开面板",
+    "action": "立刻返回常驻形态 → 保留待处理和未读标记 → 同一事项的重复进度不重新展开",
+    "exit": "下次主动打开后重新评估提醒；新事项仍只提示摘要。",
+    "note": "专注或静音时，新事项也不自动扩张。；收起后需先离开入口再进入，才恢复悬停预览。；当前已有手动折叠抑制；本条补全其交互语义。",
+    "flow": {
+      "id": "manual-collapse",
+      "title": "05 · 手动收起优先",
+      "trigger": "用户显式收起正在提醒的展开面板",
+      "steps": [
+        "立刻返回常驻形态",
+        "保留待处理和未读标记",
+        "同一事项的重复进度不重新展开"
+      ],
+      "close": "下次主动打开后重新评估提醒；新事项仍只提示摘要。",
+      "edgeCases": [
+        "专注或静音时，新事项也不自动扩张。",
+        "收起后需先离开入口再进入，才恢复悬停预览。",
+        "当前已有手动折叠抑制；本条补全其交互语义。"
+      ],
+      "status": "proposed"
+    }
+  },
+  {
+    "page": "flows",
+    "id": "escape-focus",
+    "title": "06 · Escape 与焦点归还",
+    "kind": "flow",
+    "width": 760,
+    "height": 405,
+    "availability": "交互提案",
+    "entry": "展开面板、详情或弹层打开时按 Escape",
+    "action": "优先关闭最上层弹层 → 再返回任务列表 → 最后收起展开面板并把焦点还给入口",
+    "exit": "外部点击关闭临时展开面板；已固定的展开面板保留。",
+    "note": "原生文件保存框由系统先处理 Escape。；后台提醒不转移当前应用焦点。；隐藏内容退出 Tab 顺序。",
+    "flow": {
+      "id": "escape-focus",
+      "title": "06 · Escape 与焦点归还",
+      "trigger": "展开面板、详情或弹层打开时按 Escape",
+      "steps": [
+        "优先关闭最上层弹层",
+        "再返回任务列表",
+        "最后收起展开面板并把焦点还给入口"
+      ],
+      "close": "外部点击关闭临时展开面板；已固定的展开面板保留。",
+      "edgeCases": [
+        "原生文件保存框由系统先处理 Escape。",
+        "后台提醒不转移当前应用焦点。",
+        "隐藏内容退出 Tab 顺序。"
+      ],
+      "status": "proposed"
+    }
+  },
+  {
+    "page": "flows",
+    "id": "notification-baseline",
+    "title": "07 · 当前版本的通知规则",
+    "kind": "flow",
+    "width": 760,
+    "height": 405,
+    "availability": "已有能力",
+    "entry": "收到任务生命周期事件",
+    "action": "执行中、等待、失败：摘要保持可见 → 完成：显示约 5 秒后收起，未读记录保留 → 连续完成可合并为一条摘要",
+    "exit": "当前专注模式只抑制完成提示；静音抑制全部摘要。",
+    "note": "当前表层优先级：执行中 → 等待 → 失败 → 未读完成 → 空闲。；这是源码已存在的规则，并非新方案的最终通知设计。",
+    "flow": {
+      "id": "notification-baseline",
+      "title": "07 · 当前版本的通知规则",
+      "trigger": "收到任务生命周期事件",
+      "steps": [
+        "执行中、等待、失败：摘要保持可见",
+        "完成：显示约 5 秒后收起，未读记录保留",
+        "连续完成可合并为一条摘要"
+      ],
+      "close": "当前专注模式只抑制完成提示；静音抑制全部摘要。",
+      "edgeCases": [
+        "当前表层优先级：执行中 → 等待 → 失败 → 未读完成 → 空闲。",
+        "这是源码已存在的规则，并非新方案的最终通知设计。"
+      ],
+      "status": "current"
+    }
+  },
+  {
+    "page": "flows",
+    "id": "attention-reminder",
+    "title": "08 · 等待与失败持续可找",
+    "kind": "flow",
+    "width": 760,
+    "height": 405,
+    "availability": "交互提案",
+    "entry": "任务需要处理或执行失败",
+    "action": "非专注状态下出现一条简短摘要 → 收回摘要后仍保留待处理数量 → 主动展开后，在统一任务列表中查看待确认或失败状态；点击对应行进入详情",
+    "exit": "任务恢复、被处理或用户明确归档后移除待处理标记。",
+    "note": "标记已读仅清除未读，不代表任务已解决。；不在监听器中提供伪造的授权按钮；操作为返回对话。；失败不持续闪烁、不强制打开展开面板。",
+    "flow": {
+      "id": "attention-reminder",
+      "title": "08 · 等待与失败持续可找",
+      "trigger": "任务需要处理或执行失败",
+      "steps": [
+        "非专注状态下出现一条简短摘要",
+        "收回摘要后仍保留待处理数量",
+        "主动展开后，在统一任务列表中查看待确认或失败状态；点击对应行进入详情"
+      ],
+      "close": "任务恢复、被处理或用户明确归档后移除待处理标记。",
+      "edgeCases": [
+        "标记已读仅清除未读，不代表任务已解决。",
+        "不在监听器中提供伪造的授权按钮；操作为返回对话。",
+        "失败不持续闪烁、不强制打开展开面板。"
+      ],
+      "status": "proposed"
+    }
+  },
+  {
+    "page": "flows",
+    "id": "focus-mode",
+    "title": "09 · 专注模式保持安静",
+    "kind": "flow",
+    "width": 760,
+    "height": 405,
+    "availability": "交互提案",
+    "entry": "开启专注模式或静音 1 小时",
+    "action": "继续接收并保存任务状态 → 全部自动摘要保持收起，仅更新静态标记 → 主动点击仍可查看并处理任务",
+    "exit": "退出专注或静音到期后恢复后续提醒，不补播积压动画。",
+    "note": "等待和失败标记持久保留。；与现状区别：新方案的专注模式也抑制等待、失败和执行中的自动扩张。；静音到期只更新安静状态，不抢焦点。",
+    "flow": {
+      "id": "focus-mode",
+      "title": "09 · 专注模式保持安静",
+      "trigger": "开启专注模式或静音 1 小时",
+      "steps": [
+        "继续接收并保存任务状态",
+        "全部自动摘要保持收起，仅更新静态标记",
+        "主动点击仍可查看并处理任务"
+      ],
+      "close": "退出专注或静音到期后恢复后续提醒，不补播积压动画。",
+      "edgeCases": [
+        "等待和失败标记持久保留。",
+        "与现状区别：新方案的专注模式也抑制等待、失败和执行中的自动扩张。",
+        "静音到期只更新安静状态，不抢焦点。"
+      ],
+      "status": "proposed"
+    }
+  },
+  {
+    "page": "flows",
+    "id": "completion-batch",
+    "title": "10 · 完成提醒合并",
+    "kind": "flow",
+    "width": 760,
+    "height": 405,
+    "availability": "交互提案",
+    "entry": "一个或多个任务完成",
+    "action": "显示任务标题或多项完成计数 → 短暂摘要后回到常驻入口 → 未读数量保留至用户查看或标记已读",
+    "exit": "完成摘要默认约 5 秒；正在阅读时暂停自动收回。",
+    "note": "连续事件更新计数，不反复重新起播。；展开面板已打开时只更新列表，不改变外壳形态。；取消任务进入历史，不伪装为成功完成。",
+    "flow": {
+      "id": "completion-batch",
+      "title": "10 · 完成提醒合并",
+      "trigger": "一个或多个任务完成",
+      "steps": [
+        "显示任务标题或多项完成计数",
+        "短暂摘要后回到常驻入口",
+        "未读数量保留至用户查看或标记已读"
+      ],
+      "close": "完成摘要默认约 5 秒；正在阅读时暂停自动收回。",
+      "edgeCases": [
+        "连续事件更新计数，不反复重新起播。",
+        "展开面板已打开时只更新列表，不改变外壳形态。",
+        "取消任务进入历史，不伪装为成功完成。"
+      ],
+      "status": "proposed"
+    }
+  },
+  {
+    "page": "flows",
+    "id": "reading-stability",
+    "title": "11 · 阅读期间内容稳定",
+    "kind": "flow",
+    "width": 760,
+    "height": 405,
+    "availability": "交互提案",
+    "entry": "展开面板打开期间收到任务更新",
+    "action": "原位更新状态图标和时间，并依据全部任务刷新运行任务数、不同来源角标与执行外环；当前来源仍在执行时保留 Logo → 新任务通过顶部轻提示告知 → 用户主动刷新或重新打开后再按最近更新时间排序，不按状态置顶",
+    "exit": "保持当前详情、筛选与页码；独立工作台保留主阅读区滚动位置。",
+    "note": "紧凑入口的状态汇总与任务列表顺序分离；待确认与其他状态使用相同的行结构。；正在点击的任务不能被新消息挤走。；新任务超出每页五条时更新总数，显示上一页、下一页及当前范围；保留当前页与任务序位，不新增内部滚动区。",
+    "flow": {
+      "id": "reading-stability",
+      "title": "11 · 阅读期间内容稳定",
+      "trigger": "展开面板打开期间收到任务更新",
+      "steps": [
+        "原位更新状态图标和时间，并依据全部任务刷新运行任务数、不同来源角标与执行外环；当前来源仍在执行时保留 Logo",
+        "新任务通过顶部轻提示告知",
+        "用户主动刷新或重新打开后再按最近更新时间排序，不按状态置顶"
+      ],
+      "close": "保持当前详情、筛选与页码；独立工作台保留主阅读区滚动位置。",
+      "edgeCases": [
+        "紧凑入口的状态汇总与任务列表顺序分离；待确认与其他状态使用相同的行结构。",
+        "正在点击的任务不能被新消息挤走。",
+        "新任务超出每页五条时更新总数，显示上一页、下一页及当前范围；保留当前页与任务序位，不新增内部滚动区。"
+      ],
+      "status": "proposed"
+    }
+  },
+  {
+    "page": "flows",
+    "id": "drag-preview",
+    "title": "12 · 拖拽先预览再吸附",
+    "kind": "flow",
+    "width": 760,
+    "height": 405,
+    "availability": "交互提案",
+    "entry": "拖动小球或展开面板专用拖动区",
+    "action": "越过短距离阈值后进入拖拽，取消点击意图 → 接近顶部或左右边缘时显示停靠轮廓 → 松手后沿预览位置吸附并保存当前屏幕位置",
+    "exit": "未进入吸附区时以自由浮动形态落位。",
+    "note": "Escape 取消拖拽并回到原位置。；拖拽时不触发提醒扩张或悬停摘要。；吸附已有底层能力；自由浮动持久化与取消语义属于提案。",
+    "flow": {
+      "id": "drag-preview",
+      "title": "12 · 拖拽先预览再吸附",
+      "trigger": "拖动小球或展开面板专用拖动区",
+      "steps": [
+        "越过短距离阈值后进入拖拽，取消点击意图",
+        "接近顶部或左右边缘时显示停靠轮廓",
+        "松手后沿预览位置吸附并保存当前屏幕位置"
+      ],
+      "close": "未进入吸附区时以自由浮动形态落位。",
+      "edgeCases": [
+        "Escape 取消拖拽并回到原位置。",
+        "拖拽时不触发提醒扩张或悬停摘要。",
+        "吸附已有底层能力；自由浮动持久化与取消语义属于提案。"
+      ],
+      "status": "proposed"
+    }
+  },
+  {
+    "page": "flows",
+    "id": "top-center",
+    "title": "13 · 顶部中心向下生长",
+    "kind": "flow",
+    "width": 760,
+    "height": 405,
+    "availability": "交互提案",
+    "entry": "选择顶部停靠",
+    "action": "以可用工作区顶部中心定位 → 上边界与中心轴保持稳定 → 宽度向两侧变化，高度只向下增加",
+    "exit": "收束回同一中心轴上的紧凑胶囊。",
+    "note": "避开菜单栏与顶部任务栏。；可选更小的球形常驻，不改变打开方式。；狭窄屏幕先向内避让，再将面板宽度限定为可用宽度减两侧安全边距；高度受限使用紧凑摘要或有上一页、下一页和总数的分页，保持正常字号与完整操作。",
+    "flow": {
+      "id": "top-center",
+      "title": "13 · 顶部中心向下生长",
+      "trigger": "选择顶部停靠",
+      "steps": [
+        "以可用工作区顶部中心定位",
+        "上边界与中心轴保持稳定",
+        "宽度向两侧变化，高度只向下增加"
+      ],
+      "close": "收束回同一中心轴上的紧凑胶囊。",
+      "edgeCases": [
+        "避开菜单栏与顶部任务栏。",
+        "可选更小的球形常驻，不改变打开方式。",
+        "狭窄屏幕先向内避让，再将面板宽度限定为可用宽度减两侧安全边距；高度受限使用紧凑摘要或有上一页、下一页和总数的分页，保持正常字号与完整操作。"
+      ],
+      "status": "proposed"
+    }
+  },
+  {
+    "page": "flows",
+    "id": "notch-safe-area",
+    "title": "14 · 刘海下方安全展开",
+    "kind": "flow",
+    "width": 760,
+    "height": 405,
+    "availability": "交互提案",
+    "entry": "在有刘海的 Mac 开启刘海兼容布局",
+    "action": "依据实际屏幕安全区域确定中心与下缘 → 静止外壳可融入黑色刘海，下方保留可发现入口 → 全部文字和操作从硬件区域下方出现",
+    "exit": "收回刘海下沿；菜单栏或键盘入口仍可访问。",
+    "note": "摄像头区域不放文字、按钮和命中区域。；自动隐藏菜单栏出现时重新避让。；已有兼容布局设置；最终安全区与系统行为需 macOS 实机验证。",
+    "flow": {
+      "id": "notch-safe-area",
+      "title": "14 · 刘海下方安全展开",
+      "trigger": "在有刘海的 Mac 开启刘海兼容布局",
+      "steps": [
+        "依据实际屏幕安全区域确定中心与下缘",
+        "静止外壳可融入黑色刘海，下方保留可发现入口",
+        "全部文字和操作从硬件区域下方出现"
+      ],
+      "close": "收回刘海下沿；菜单栏或键盘入口仍可访问。",
+      "edgeCases": [
+        "摄像头区域不放文字、按钮和命中区域。",
+        "自动隐藏菜单栏出现时重新避让。",
+        "已有兼容布局设置；最终安全区与系统行为需 macOS 实机验证。"
+      ],
+      "status": "proposed"
+    }
+  },
+  {
+    "page": "flows",
+    "id": "side-docking",
+    "title": "15 · 侧边始终向内展开",
+    "kind": "flow",
+    "width": 760,
+    "height": 405,
+    "availability": "交互提案",
+    "entry": "停靠左侧或右侧",
+    "action": "小球保持在贴边位置 → 左侧向右展开，右侧向左展开；展开宽度默认 520 → 空间不足时先让整个展开面板向内或上下避让；仍受限时适配宽度、紧凑摘要或明确分页，不裁剪内容",
+    "exit": "外壳收回原球心；不横穿整张展开面板。",
+    "note": "文字保持正常方向，不随左右模式镜像。；边缘保留可点击面积，不把球藏到屏幕外。；默认五条任务同屏；高度不足时分页提供上一页、下一页与总数，更多任务仍可进入完整工作台。",
+    "flow": {
+      "id": "side-docking",
+      "title": "15 · 侧边始终向内展开",
+      "trigger": "停靠左侧或右侧",
+      "steps": [
+        "小球保持在贴边位置",
+        "左侧向右展开，右侧向左展开；展开宽度默认 520",
+        "空间不足时先让整个展开面板向内或上下避让；仍受限时适配宽度、紧凑摘要或明确分页，不裁剪内容"
+      ],
+      "close": "外壳收回原球心；不横穿整张展开面板。",
+      "edgeCases": [
+        "文字保持正常方向，不随左右模式镜像。",
+        "边缘保留可点击面积，不把球藏到屏幕外。",
+        "默认五条任务同屏；高度不足时分页提供上一页、下一页与总数，更多任务仍可进入完整工作台。"
+      ],
+      "status": "proposed"
+    }
+  },
+  {
+    "page": "flows",
+    "id": "multiscreen-fullscreen",
+    "title": "16 · 多屏与全屏",
+    "kind": "flow",
+    "width": 760,
+    "height": 405,
+    "availability": "交互提案",
+    "entry": "跨屏拖动、显示器断开或进入全屏应用",
+    "action": "跨屏时预览目标屏幕的实际工作区 → 按屏幕分别保存停靠位置和比例 → 全屏场景默认不自动扩张，允许用户主动唤出",
+    "exit": "屏幕断开时迁回主屏可见位置；退出全屏恢复位置。",
+    "note": "跨 DPI 缩放时保持逻辑尺寸。；全屏、Spaces 与独占全屏覆盖能力必须做原生验证。；不复制成多个重复发声的入口。",
+    "flow": {
+      "id": "multiscreen-fullscreen",
+      "title": "16 · 多屏与全屏",
+      "trigger": "跨屏拖动、显示器断开或进入全屏应用",
+      "steps": [
+        "跨屏时预览目标屏幕的实际工作区",
+        "按屏幕分别保存停靠位置和比例",
+        "全屏场景默认不自动扩张，允许用户主动唤出"
+      ],
+      "close": "屏幕断开时迁回主屏可见位置；退出全屏恢复位置。",
+      "edgeCases": [
+        "跨 DPI 缩放时保持逻辑尺寸。",
+        "全屏、Spaces 与独占全屏覆盖能力必须做原生验证。",
+        "不复制成多个重复发声的入口。"
+      ],
+      "status": "proposed"
+    }
+  },
+  {
+    "page": "flows",
+    "id": "theme-switch",
+    "title": "17 · 外观切换保留上下文",
+    "kind": "flow",
+    "width": 760,
+    "height": 405,
+    "availability": "交互提案",
+    "entry": "切换深墨、纸白或深海灰",
+    "action": "预览常驻入口、展开面板和独立工作台的外观 → 替换材质、文字和状态色令牌 → 保持位置、展开状态、任务与键盘焦点",
+    "exit": "关闭外观设置后保留选择。",
+    "note": "刘海锚点仍保持黑色，展开内容可使用所选主题。；高对比度优先于玻璃透明效果。；主题系统为提案；宠物模式仍属未来规划。",
+    "flow": {
+      "id": "theme-switch",
+      "title": "17 · 外观切换保留上下文",
+      "trigger": "切换深墨、纸白或深海灰",
+      "steps": [
+        "预览常驻入口、展开面板和独立工作台的外观",
+        "替换材质、文字和状态色令牌",
+        "保持位置、展开状态、任务与键盘焦点"
+      ],
+      "close": "关闭外观设置后保留选择。",
+      "edgeCases": [
+        "刘海锚点仍保持黑色，展开内容可使用所选主题。",
+        "高对比度优先于玻璃透明效果。",
+        "主题系统为提案；宠物模式仍属未来规划。"
+      ],
+      "status": "proposed"
+    }
+  },
+  {
+    "page": "flows",
+    "id": "connect-repair-current",
+    "title": "18 · 已有工具绑定与修复",
+    "kind": "flow",
+    "width": 760,
+    "height": 405,
+    "availability": "已有能力",
+    "entry": "设置 → AI 工具",
+    "action": "选择工具并启用监听 → 安装或修复对应绑定 → 发送测试事件并检查结果",
+    "exit": "关闭设置后保持已保存的监听配置。",
+    "note": "只读监听工具与 hook 工具使用不同接入方式。；安装失败展示错误；适用工具提供手动绑定说明。；README 记载启动时检查并修复已启用绑定。",
+    "flow": {
+      "id": "connect-repair-current",
+      "title": "18 · 已有工具绑定与修复",
+      "trigger": "设置 → AI 工具",
+      "steps": [
+        "选择工具并启用监听",
+        "安装或修复对应绑定",
+        "发送测试事件并检查结果"
+      ],
+      "close": "关闭设置后保持已保存的监听配置。",
+      "edgeCases": [
+        "只读监听工具与 hook 工具使用不同接入方式。",
+        "安装失败展示错误；适用工具提供手动绑定说明。",
+        "README 记载启动时检查并修复已启用绑定。"
+      ],
+      "status": "current"
+    }
+  },
+  {
+    "page": "flows",
+    "id": "connection-recovery",
+    "title": "19 · 连接异常可以恢复",
+    "kind": "flow",
+    "width": 760,
+    "height": 405,
+    "availability": "交互提案",
+    "entry": "绑定缺失、测试失败或数据读取异常",
+    "action": "连接卡片展示具体原因和最后检查时间 → 用户点击修复，显示进行中并防止重复提交 → 修复后重新测试，成功恢复已连接状态",
+    "exit": "失败保留诊断与重试；成功后用户自行关闭连接页。",
+    "note": "长时间没有新任务不等于连接断开。；保留其他工具的配置与已有任务历史。；统一连接卡片和恢复反馈是重设计提案。",
+    "flow": {
+      "id": "connection-recovery",
+      "title": "19 · 连接异常可以恢复",
+      "trigger": "绑定缺失、测试失败或数据读取异常",
+      "steps": [
+        "连接卡片展示具体原因和最后检查时间",
+        "用户点击修复，显示进行中并防止重复提交",
+        "修复后重新测试，成功恢复已连接状态"
+      ],
+      "close": "失败保留诊断与重试；成功后用户自行关闭连接页。",
+      "edgeCases": [
+        "长时间没有新任务不等于连接断开。",
+        "保留其他工具的配置与已有任务历史。",
+        "统一连接卡片和恢复反馈是重设计提案。"
+      ],
+      "status": "proposed"
+    }
+  },
+  {
+    "page": "flows",
+    "id": "deep-link-recovery",
+    "title": "20 · 返回对话与跳转失败",
+    "kind": "flow",
+    "width": 760,
+    "height": 405,
+    "availability": "交互提案",
+    "entry": "任务详情 → 返回对话",
+    "action": "优先使用任务提供的 deep link → 无法定位时提示并提供打开来源应用 → 仍失败则保留任务信息与重试入口",
+    "exit": "跳转成功不删除任务；用户回到展开面板仍能找到原记录。",
+    "note": "没有 deep link 时明确显示打开来源应用。；不能跳转时不声称已打开。；已有任务跳转能力；清晰的失败反馈与替代路径为提案。",
+    "flow": {
+      "id": "deep-link-recovery",
+      "title": "20 · 返回对话与跳转失败",
+      "trigger": "任务详情 → 返回对话",
+      "steps": [
+        "优先使用任务提供的 deep link",
+        "无法定位时提示并提供打开来源应用",
+        "仍失败则保留任务信息与重试入口"
+      ],
+      "close": "跳转成功不删除任务；用户回到展开面板仍能找到原记录。",
+      "edgeCases": [
+        "没有 deep link 时明确显示打开来源应用。",
+        "不能跳转时不声称已打开。",
+        "已有任务跳转能力；清晰的失败反馈与替代路径为提案。"
+      ],
+      "status": "proposed"
+    }
+  },
+  {
+    "page": "flows",
+    "id": "usage-export",
+    "title": "21 · 用量回顾与手动分享",
+    "kind": "flow",
+    "width": 760,
+    "height": 405,
+    "availability": "已有能力",
+    "entry": "打开用量日历并选择日、周或月",
+    "action": "查看本地汇总、模型分布与费用估算 → 点击分享战报生成图片预览 → 用户选择复制图片或保存 PNG",
+    "exit": "关闭预览返回用量页；是否发送由用户自行决定。",
+    "note": "复制失败可改为保存 PNG。；保存或生成失败显示原因并允许重试。；仅支持已接入来源的结构化用量；费用是估算。",
+    "flow": {
+      "id": "usage-export",
+      "title": "21 · 用量回顾与手动分享",
+      "trigger": "打开用量日历并选择日、周或月",
+      "steps": [
+        "查看本地汇总、模型分布与费用估算",
+        "点击分享战报生成图片预览",
+        "用户选择复制图片或保存 PNG"
+      ],
+      "close": "关闭预览返回用量页；是否发送由用户自行决定。",
+      "edgeCases": [
+        "复制失败可改为保存 PNG。",
+        "保存或生成失败显示原因并允许重试。",
+        "仅支持已接入来源的结构化用量；费用是估算。"
+      ],
+      "status": "current"
+    }
+  },
+  {
+    "page": "flows",
+    "id": "empty-loading-error",
+    "title": "22 · 空白、加载与错误",
+    "kind": "flow",
+    "width": 760,
+    "height": 405,
+    "availability": "交互提案",
+    "entry": "首次使用、读取历史或加载失败",
+    "action": "首次使用：显示连接 AI 工具入口 → 已连接无任务：显示已就绪与测试连接 → 读取中：保留框架；失败：展示原因与重试",
+    "exit": "数据恢复后替换内容，保留展开面板位置与高度连续性。",
+    "note": "空状态不使用错误红色。；没有用量数据不能显示为真实零消耗。；离线与没有事件分开表达。",
+    "flow": {
+      "id": "empty-loading-error",
+      "title": "22 · 空白、加载与错误",
+      "trigger": "首次使用、读取历史或加载失败",
+      "steps": [
+        "首次使用：显示连接 AI 工具入口",
+        "已连接无任务：显示已就绪与测试连接",
+        "读取中：保留框架；失败：展示原因与重试"
+      ],
+      "close": "数据恢复后替换内容，保留展开面板位置与高度连续性。",
+      "edgeCases": [
+        "空状态不使用错误红色。",
+        "没有用量数据不能显示为真实零消耗。",
+        "离线与没有事件分开表达。"
+      ],
+      "status": "proposed"
+    }
+  },
+  {
+    "page": "flows",
+    "id": "future-actions",
+    "title": "23 · 未来功能共用入口",
+    "kind": "flow",
+    "width": 760,
+    "height": 405,
+    "availability": "交互提案",
+    "entry": "查看动作入口或桌面伴侣预览",
+    "action": "未来动作集中在展开面板的独立分区，只显示可完整阅读的少量动作 → 未实现能力显示规划中，不提供伪执行反馈；详情与回顾沿用宽裕的同宽布局，长说明转独立页面 → 能力上线后仍共用当前停靠与通知规则，动作、详情与回顾不使用嵌套滚动",
+    "exit": "返回动态页；常驻胶囊体积不随功能增加。",
+    "note": "快速记录、工作流与宠物能力属于未来规划。；监听权限不等于可在源工具内执行或批准操作。；长内容进入独立工作台；空间不足时使用清晰分页或页面入口，不能靠缩小字号或隐藏滚动条处理溢出。",
+    "flow": {
+      "id": "future-actions",
+      "title": "23 · 未来功能共用入口",
+      "trigger": "查看动作入口或桌面伴侣预览",
+      "steps": [
+        "未来动作集中在展开面板的独立分区，只显示可完整阅读的少量动作",
+        "未实现能力显示规划中，不提供伪执行反馈；详情与回顾沿用宽裕的同宽布局，长说明转独立页面",
+        "能力上线后仍共用当前停靠与通知规则，动作、详情与回顾不使用嵌套滚动"
+      ],
+      "close": "返回动态页；常驻胶囊体积不随功能增加。",
+      "edgeCases": [
+        "快速记录、工作流与宠物能力属于未来规划。",
+        "监听权限不等于可在源工具内执行或批准操作。",
+        "长内容进入独立工作台；空间不足时使用清晰分页或页面入口，不能靠缩小字号或隐藏滚动条处理溢出。"
+      ],
+      "status": "proposed"
+    }
+  },
+  {
+    "page": "flows",
+    "id": "open-full-workbench",
+    "title": "24 · 进入完整工作台",
+    "kind": "flow",
+    "width": 760,
+    "height": 405,
+    "availability": "交互提案",
+    "entry": "点击查看全部任务，或展开面板右上角 ↗",
+    "action": "在独立大窗口打开完整工作台 → 承接当前任务上下文，并容纳完整任务列表、历史、用量、设置与长说明；长内容使用单一主阅读区滚动 → 常驻入口回到紧凑形态，继续显示任务状态",
+    "exit": "关闭大窗只关闭工作台，不退出常驻入口与后台监听。",
+    "note": "工作台已打开时聚焦已有窗口，不重复创建。；展开面板默认宽 520、五条任务时高约 470，左右内边距各 24；完整工作台是独立窗口，两者不共用关闭语义。；统一工作台与查看全部任务、↗ 入口为提案；当前已有独立设置和用量页面。",
+    "flow": {
+      "id": "open-full-workbench",
+      "title": "24 · 进入完整工作台",
+      "trigger": "点击查看全部任务，或展开面板右上角 ↗",
+      "steps": [
+        "在独立大窗口打开完整工作台",
+        "承接当前任务上下文，并容纳完整任务列表、历史、用量、设置与长说明；长内容使用单一主阅读区滚动",
+        "常驻入口回到紧凑形态，继续显示任务状态"
+      ],
+      "close": "关闭大窗只关闭工作台，不退出常驻入口与后台监听。",
+      "edgeCases": [
+        "工作台已打开时聚焦已有窗口，不重复创建。",
+        "展开面板默认宽 520、五条任务时高约 470，左右内边距各 24；完整工作台是独立窗口，两者不共用关闭语义。",
+        "统一工作台与查看全部任务、↗ 入口为提案；当前已有独立设置和用量页面。"
+      ],
+      "status": "proposed"
+    }
+  }
+]

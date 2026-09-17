@@ -22,21 +22,21 @@ describe("ball lanes", () => {
     expect(edgeAlign("top")).toBe("center");
   });
 
-  it("maps inner toward the desktop", () => {
-    expect(innerAlign("left")).toBe("end");
+  it("keeps the open identity at the leading edge for every dock", () => {
+    expect(innerAlign("left")).toBe("start");
     expect(innerAlign("right")).toBe("start");
     expect(innerAlign("top")).toBe("start");
   });
 
-  it("resolves left open as start → end", () => {
+  it("keeps the left-docked orb in its leading lane while opening", () => {
     expect(resolveAlign("left", "edge")).toBe("start");
-    expect(resolveAlign("left", "inner")).toBe("end");
+    expect(resolveAlign("left", "inner")).toBe("start");
   });
 
-  it("mirrors the same lanes on left and right docks", () => {
+  it("preserves side anchors while sharing the same open identity lane", () => {
     expect(resolveAlign("left", "edge")).toBe("start");
     expect(resolveAlign("right", "edge")).toBe("end");
-    expect(resolveAlign("left", "inner")).toBe("end");
+    expect(resolveAlign("left", "inner")).toBe("start");
     expect(resolveAlign("right", "inner")).toBe("start");
   });
 });
@@ -77,13 +77,27 @@ describe("plans", () => {
 
   it("keeps the orb full-size until the capsule starts revealing", () => {
     expect(orbSize("icon")).toBe(36);
-    expect(orbSize("strip")).toBe(32);
-    expect(orbSize("panel")).toBe(32);
+    expect(orbSize("strip")).toBe(28);
+    expect(orbSize("panel")).toBe(28);
   });
 
   it("opens peek without growing to panel", () => {
     const last = openPlan("peek").at(-1)?.frame;
     expect(last).toEqual({ stage: "strip", ball: "inner" });
+  });
+
+  it("overlaps beats instead of stopping between phases", () => {
+    // The ball launches while the pill reveal is still decelerating…
+    expect(openPlan("peek")[1]?.hold).toBeLessThan(MOTION.strip);
+    // …and the capsule contracts while the ball is still travelling.
+    expect(closeCapsulePlan()[1]?.hold).toBeLessThan(MOTION.travel);
+  });
+
+  it("keeps the readable opening within its interaction budget", () => {
+    const duration = (layout: "peek" | "expanded") =>
+      openPlan(layout).reduce((sum, beat) => sum + beat.hold, 0);
+    expect(duration("peek")).toBeLessThan(650);
+    expect(duration("expanded")).toBeLessThan(1000);
   });
 
   it("closes only the capsule after the drawer has folded", () => {
@@ -109,7 +123,7 @@ describe("plans", () => {
       "clockwise",
     );
     expect(orbRollDirection("left", "opening", "strip", "inner")).toBe(
-      "clockwise",
+      "none",
     );
     expect(orbRollDirection("right", "opening", "strip", "inner")).toBe(
       "counterclockwise",
@@ -119,7 +133,7 @@ describe("plans", () => {
   it("keeps the completed closing turn through the terminal icon frame", () => {
     expect(orbRollDirection("top", "closing", "icon", "edge")).toBe("clockwise");
     expect(orbRollDirection("left", "closing", "icon", "edge")).toBe(
-      "counterclockwise",
+      "none",
     );
     expect(orbRollDirection("right", "closing", "icon", "edge")).toBe("clockwise");
   });
@@ -136,6 +150,8 @@ describe("plans", () => {
       { stage: "panel", ball: "inner" },
       { stage: "strip", ball: "inner" },
     ]);
+    expect(foldPlan()[0]?.hold).toBe(MOTION.reveal);
+    expect(foldPlan().at(-1)?.hold).toBe(MOTION.fold);
   });
 
   it("unfolds from a stable pill frame without moving the ball", () => {
@@ -143,6 +159,8 @@ describe("plans", () => {
       { stage: "strip", ball: "inner" },
       { stage: "panel", ball: "inner" },
     ]);
+    expect(unfoldPlan()[0]?.hold).toBe(MOTION.reveal);
+    expect(unfoldPlan().at(-1)?.hold).toBe(MOTION.panel);
   });
 });
 
@@ -155,6 +173,29 @@ describe("idleFrame", () => {
 });
 
 describe("runMotionPlan", () => {
+  it.each([
+    { name: "capsule close", plan: closeCapsulePlan(), exitDuration: MOTION.capsule },
+    { name: "drawer fold", plan: foldPlan(), exitDuration: MOTION.fold },
+  ])("waits for $name to settle before allowing native teardown", async ({ plan, exitDuration }) => {
+    let releaseExit!: () => void;
+    let markExitStarted!: () => void;
+    const exitHold = new Promise<void>((resolve) => { releaseExit = resolve; });
+    const exitStarted = new Promise<void>((resolve) => { markExitStarted = resolve; });
+    let finished = false;
+    const run = runMotionPlan(plan, () => undefined, async (ms) => {
+      if (ms === exitDuration) {
+        markExitStarted();
+        await exitHold;
+      }
+    }).then(() => { finished = true; });
+
+    await exitStarted;
+    expect(finished).toBe(false);
+    releaseExit();
+    await run;
+    expect(finished).toBe(true);
+  });
+
   it("applies every frame in order", async () => {
     const seen: string[] = [];
     await runMotionPlan(

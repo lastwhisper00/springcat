@@ -40,7 +40,10 @@ describe("shellSize", () => {
     expect(shellSize("right", "peek", "card")).toEqual({ width: 268, height: 48 });
     expect(shellSize("top", "peek", "strip", true)).toEqual({ width: 360, height: 48 });
     expect(shellSize("top", "peek", "strip", true, true)).toEqual({ width: 520, height: 48 });
-    expect(shellSize("top", "expanded", "card")).toEqual({ width: 360, height: 448 });
-    expect(shellSize("top", "expanded", "card", true, true)).toEqual({ width: 520, height: 448 });
+    for (const side of ["top", "left", "right"] as const) {
+      expect(shellSize(side, "expanded", "card")).toEqual({ width: 440, height: 420 });
+      expect(shellSize(side, "expanded", "card", true)).toEqual({ width: 440, height: 420 });
+      expect(shellSize(side, "expanded", "card", true, true)).toEqual({ width: 440, height: 420 });
+    }
   });
 });

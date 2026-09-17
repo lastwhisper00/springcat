@@ -9,6 +9,7 @@ export interface AdapterToggles {
   workBuddy: boolean;
   marvis: boolean;
   dshDesktop: boolean;
+  zcode: boolean;
 }
 
 export interface AppSettings {
@@ -59,6 +60,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     workBuddy: true,
     marvis: true,
     dshDesktop: true,
+    zcode: true,
   },
 };
 

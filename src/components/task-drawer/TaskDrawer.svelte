@@ -1,93 +1,96 @@
 <script lang="ts">
+  import { untrack } from "svelte";
   import type { TaskItem } from "$domain";
-  import { formatClock, formatDuration, SOURCE_LABEL, STATUS_LABEL } from "$components/work-panel/copy";
+  import { formatClock, SOURCE_LABEL } from "$components/work-panel/copy";
   import ToolLogo from "$components/work-panel/ToolLogo.svelte";
+  import { reconcileTaskOrder, sortTaskIds } from "./task-order";
 
   let {
     tasks,
     ontaskopen,
+    onmarkallread,
     onhoverchange,
   }: {
     tasks: TaskItem[];
-    ontoggle?: (event: MouseEvent) => void;
     ontaskopen?: (task: TaskItem) => void;
+    onmarkallread?: () => void;
     onhoverchange?: (hovered: boolean) => void;
   } = $props();
 
-  const visible = $derived(tasks.slice(0, 50));
+  const statusLabel: Record<TaskItem["status"], string> = {
+    running: "进行中",
+    waiting: "待确认",
+    completed: "已完成",
+    failed: "失败",
+    cancelled: "已取消",
+  };
 
-  let listEl = $state<HTMLElement | undefined>(undefined);
-  let scrolledDown = $state(false);
-  let canScrollDown = $state(false);
-
-  function updateScrollHint() {
-    const el = listEl;
-    if (!el) return;
-    scrolledDown = el.scrollTop > 4;
-    canScrollDown = el.scrollHeight - el.scrollTop - el.clientHeight > 4;
-  }
+  let readingOrder = $state<string[] | null>(null);
+  const taskById = $derived(new Map(tasks.map((task) => [task.id, task])));
+  const orderedIds = $derived(readingOrder ?? sortTaskIds(tasks));
+  const orderedTasks = $derived(
+    orderedIds.flatMap((id) => {
+      const task = taskById.get(id);
+      return task ? [task] : [];
+    }),
+  );
+  const unreadCount = $derived(tasks.filter((task) => task.unread).length);
 
   $effect(() => {
-    tasks;
-    const el = listEl;
-    if (!el) return;
-    updateScrollHint();
-    el.addEventListener("scroll", updateScrollHint, { passive: true });
-    const observer = new ResizeObserver(updateScrollHint);
-    observer.observe(el);
-    return () => {
-      el.removeEventListener("scroll", updateScrollHint);
-      observer.disconnect();
-    };
+    const currentTasks = [...tasks];
+    untrack(() => {
+      readingOrder = reconcileTaskOrder(readingOrder, currentTasks);
+    });
   });
+
 </script>
 
 <div
   class="drawer"
-  class:show-top-fade={scrolledDown}
-  class:show-bottom-fade={canScrollDown}
   onpointerdown={(event) => event.stopPropagation()}
+  onclick={(event) => event.stopPropagation()}
+  ondblclick={(event) => event.stopPropagation()}
+  onkeydown={(event) => {
+    if (event.key !== "Escape") event.stopPropagation();
+  }}
   onpointerenter={() => onhoverchange?.(true)}
   onpointerleave={() => onhoverchange?.(false)}
   role="presentation"
 >
-  <i class="fade top" aria-hidden="true"></i>
-  <i class="fade bottom" aria-hidden="true"></i>
-  <ul class="list" bind:this={listEl}>
-    {#each visible as task (task.id)}
+  <header class="drawer-header">
+    <h2>最近任务 <span class="total">{tasks.length}</span></h2>
+    <div class="header-actions">
+      {#if onmarkallread}
+        <button
+          class="text-control"
+          type="button"
+          disabled={unreadCount === 0}
+          onclick={() => onmarkallread?.()}
+        >{unreadCount === 0 ? "全部已读" : "标记已读"}</button>
+      {/if}
+    </div>
+  </header>
+
+  <ul class="list" aria-label="最近任务">
+    {#each orderedTasks as task (task.id)}
       <li class="row" data-status={task.status}>
         <button
           class="hit"
           type="button"
-          aria-label={`打开任务：${task.title}`}
-          title={`打开任务：${task.title}`}
-          onclick={(event) => {
-            event.stopPropagation();
-            ontaskopen?.(task);
-          }}
+          aria-label={`打开任务：${task.title}，${statusLabel[task.status]}`}
+          title={task.title}
+          onclick={() => ontaskopen?.(task)}
         >
-          <span class="source-icon" aria-hidden="true">
-            <ToolLogo source={task.source} />
-          </span>
-
+          <span class="source-icon" aria-hidden="true"><ToolLogo source={task.source} /></span>
           <span class="task-copy">
-            <span class="title-line">
-              <span class="title" title={task.title}>{task.title}</span>
-            </span>
+            <span class="title">{task.title}</span>
             <span class="meta">
               <span>{SOURCE_LABEL[task.source]}</span>
-              <i class="separator"></i>
-              <span>{formatDuration(task)}</span>
+              <span aria-hidden="true">·</span>
+              <time datetime={task.updatedAt}>{formatClock(task.updatedAt)}</time>
             </span>
           </span>
-
-          <span class="trail">
-            <span class="status"><i></i>{STATUS_LABEL[task.status]}</span>
-            <time datetime={task.completedAt ?? task.updatedAt}>
-              {formatClock(task.completedAt ?? task.updatedAt)}
-            </time>
-          </span>
-          <span class="chevron" aria-hidden="true">›</span>
+          <span class="status"><i aria-hidden="true"></i>{statusLabel[task.status]}</span>
         </button>
       </li>
     {:else}
@@ -98,273 +101,186 @@
 
 <style>
   .drawer {
-    position: relative;
     display: flex;
-    min-height: 0;
     flex: 1;
-    overflow: hidden;
-    padding: 4px 0 8px;
-    border-top: 1px solid color-mix(in srgb, var(--sc-text) 7%, transparent);
-  }
-
-  .list {
-    margin: 0;
-    padding: 2px 0 8px;
-    list-style: none;
-    display: flex;
     flex-direction: column;
-    gap: 0;
-    overflow: auto;
+    min-width: 0;
     min-height: 0;
-    flex: 1;
-    scrollbar-gutter: stable;
-  }
-
-  .list::-webkit-scrollbar {
-    width: 4px;
-  }
-
-  .list::-webkit-scrollbar-track,
-  .list::-webkit-scrollbar-corner {
-    background: transparent;
-  }
-
-  .list::-webkit-scrollbar-thumb {
-    border-radius: 999px;
-    background: color-mix(in srgb, var(--sc-text) 28%, transparent);
-  }
-
-  .list::-webkit-scrollbar-thumb:hover {
-    background: color-mix(in srgb, var(--sc-text) 48%, transparent);
-  }
-
-  .list::-webkit-scrollbar-button {
-    display: none;
-    width: 0;
-    height: 0;
-  }
-
-  .row,
-  .empty {
-    color: var(--sc-text);
-  }
-
-  .row {
-    --row-status: var(--sc-muted);
-    position: relative;
-    flex: 0 0 auto;
     overflow: hidden;
-    background: transparent;
-    transition: background-color 150ms var(--sc-ease);
+    padding: 0 0 8px;
+    color: var(--sc-text);
+    cursor: default;
   }
 
-  .row:not(:last-child)::after {
-    content: "";
-    position: absolute;
-    right: 12px;
-    bottom: 0;
-    left: 44px;
-    height: 1px;
-    background: color-mix(in srgb, var(--sc-text) 6%, transparent);
-    pointer-events: none;
-  }
-
-  .row[data-status="running"] {
-    --row-status: var(--sc-working);
-  }
-
-  .row[data-status="waiting"] {
-    --row-status: var(--sc-waiting);
-  }
-
-  .row[data-status="completed"] {
-    --row-status: var(--sc-completed);
-  }
-
-  .row[data-status="failed"] {
-    --row-status: var(--sc-failed);
-  }
-
-  .empty {
-    padding: 16px 10px;
-    color: var(--sc-muted);
-    text-align: center;
-  }
-
-  .hit {
-    display: grid;
-    grid-template-columns: 22px minmax(0, 1fr) auto 16px;
+  .drawer-header {
+    display: flex;
     align-items: center;
-    gap: 11px;
-    width: 100%;
-    min-height: 58px;
-    padding: 9px 12px;
+    justify-content: space-between;
+    gap: 8px;
+    height: 40px;
+    flex: 0 0 40px;
+    padding: 0 24px;
+  }
+
+  h2 {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin: 0;
+    color: var(--sc-muted);
+    font-size: 13px;
+    font-weight: 400;
+    line-height: 20px;
+    white-space: nowrap;
+  }
+
+  .total,
+  time { font-variant-numeric: tabular-nums; }
+
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .text-control {
     border: 0;
+    border-radius: 6px;
     background: transparent;
-    color: inherit;
+    color: var(--sc-muted);
     font: inherit;
-    text-align: left;
+    font-size: 13px;
+    line-height: 20px;
     cursor: pointer;
   }
 
-  .row:hover,
-  .row:focus-within {
-    background: color-mix(in srgb, var(--sc-text) 9%, transparent);
+  .text-control {
+    min-height: 28px;
+    padding: 3px 4px;
+    white-space: nowrap;
   }
 
-  .hit:focus-visible {
-    outline: 0;
-    box-shadow: inset 2px 0 var(--row-status);
+  .text-control:hover:not(:disabled) { background: var(--sc-row-hover); }
+  .text-control:active:not(:disabled) { background: var(--sc-row-pressed); }
+  button:disabled { cursor: default; opacity: 0.5; }
+
+  .list {
+    --sc-row-hover: rgba(255, 255, 255, 0.14);
+    --sc-row-pressed: rgba(255, 255, 255, 0.18);
+    flex: 1;
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+    scrollbar-gutter: stable;
   }
+
+  .list::-webkit-scrollbar { width: 6px; }
+  .list::-webkit-scrollbar-track,
+  .list::-webkit-scrollbar-corner { background: transparent; }
+  .list::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--sc-text) 25%, transparent);
+  }
+  .list::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in srgb, var(--sc-text) 45%, transparent);
+  }
+  .list::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
+
+  .row { --row-status: var(--sc-muted); height: 64px; }
+  .row[data-status="running"] { --row-status: var(--sc-working); }
+  .row[data-status="waiting"] { --row-status: var(--sc-waiting); }
+  .row[data-status="completed"] { --row-status: var(--sc-completed); }
+  .row[data-status="failed"] { --row-status: var(--sc-failed); }
+
+  .hit {
+    display: grid;
+    grid-template-columns: 20px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 13px;
+    width: 100%;
+    height: 64px;
+    padding: 10px 24px;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    color: var(--sc-text);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: background-color 140ms ease;
+  }
+
+  .hit:hover,
+  .hit:focus-visible { background: var(--sc-row-hover); }
+  .hit:active { background: var(--sc-row-pressed); }
+  button:focus-visible { outline: 2px solid var(--sc-working); outline-offset: -2px; }
 
   .source-icon {
     display: grid;
     place-items: center;
-    width: 22px;
-    height: 22px;
-    padding: 2px;
-    color: color-mix(in srgb, var(--sc-text) 78%, var(--row-status));
+    width: 20px;
+    height: 20px;
+    color: var(--sc-muted);
   }
 
   .task-copy {
     display: flex;
     min-width: 0;
     flex-direction: column;
-    gap: 4px;
+    gap: 2px;
   }
 
-  .title-line {
-    display: flex;
-    min-width: 0;
-    align-items: center;
-    gap: 6px;
+  .title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 20px;
   }
 
   .meta {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 4px;
     overflow: hidden;
-    font-size: 10.5px;
-    color: var(--sc-muted);
+    color: #969696;
+    font-size: 11px;
+    font-weight: 400;
+    line-height: 16px;
     white-space: nowrap;
-  }
-
-  .separator {
-    width: 2px;
-    height: 2px;
-    flex: 0 0 auto;
-    border-radius: 50%;
-    background: currentColor;
-    opacity: 0.58;
-  }
-
-  .title {
-    min-width: 0;
-    flex: 0 1 auto;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    font-size: 12.5px;
-    font-weight: 650;
-    line-height: 1.25;
-  }
-
-  .trail {
-    display: flex;
-    min-width: 62px;
-    align-items: flex-end;
-    flex-direction: column;
-    gap: 5px;
-  }
-
-  /* The chevron column is always reserved so rows do not shift when it fades
-     in; it only becomes visible as a "this opens" affordance on hover. */
-  .chevron {
-    display: grid;
-    place-items: center;
-    color: var(--sc-muted);
-    font-size: 15px;
-    font-weight: 300;
-    line-height: 1;
-    opacity: 0;
-    transform: translateX(-3px);
-    transition:
-      opacity 140ms var(--sc-ease),
-      transform 140ms var(--sc-ease);
-  }
-
-  .row:hover .chevron,
-  .row:focus-within .chevron {
-    opacity: 0.85;
-    transform: translateX(0);
-  }
-
-  /* Scroll-edge fades hint that more tasks are reachable above/below. */
-  .fade {
-    position: absolute;
-    z-index: 1;
-    left: 0;
-    right: 0;
-    height: 20px;
-    pointer-events: none;
-    opacity: 0;
-    transition: opacity 160ms ease;
-  }
-
-  .fade.top {
-    top: 0;
-    background: linear-gradient(
-      to bottom,
-      color-mix(in srgb, var(--sc-surface) 97%, transparent),
-      transparent
-    );
-  }
-
-  .fade.bottom {
-    bottom: 0;
-    background: linear-gradient(
-      to top,
-      color-mix(in srgb, var(--sc-surface) 97%, transparent),
-      transparent
-    );
-  }
-
-  .drawer.show-top-fade .fade.top,
-  .drawer.show-bottom-fade .fade.bottom {
-    opacity: 1;
   }
 
   .status {
     display: inline-flex;
     align-items: center;
-    gap: 5px;
-    padding: 0 2px;
-    color: color-mix(in srgb, var(--sc-text) 76%, var(--row-status));
-    font-size: 9.5px;
-    font-weight: 600;
-    line-height: 1;
+    gap: 6px;
+    color: var(--sc-muted);
+    font-size: 12px;
+    font-weight: 400;
+    line-height: 20px;
     white-space: nowrap;
   }
 
   .status i {
-    width: 5px;
-    height: 5px;
+    width: 4px;
+    height: 4px;
+    flex: 0 0 4px;
     border-radius: 50%;
     background: var(--row-status);
   }
 
-  time {
-    padding-right: 2px;
+  .empty {
+    padding: 36px 10px;
     color: var(--sc-muted);
-    font-size: 9.5px;
-    font-variant-numeric: tabular-nums;
-    line-height: 1;
+    text-align: center;
+    font-size: 13px;
+    line-height: 20px;
   }
 
-  @media (prefers-reduced-motion: reduce) {
-    .row {
-      transition: none;
-    }
-  }
+  @media (prefers-reduced-motion: reduce) { .hit { transition: none; } }
 </style>

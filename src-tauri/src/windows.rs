@@ -151,13 +151,7 @@ fn settle_window_if_idle(app: &AppHandle) -> tauri::Result<()> {
         // Native window dragging does not reliably return a pointer-up event to
         // the WebView. Re-anchor every pinned shape after movement settles, not
         // just the 48 px collapsed orb frame, while preserving its current layout.
-        let layout = if size.height >= 280.0 {
-            PanelLayout::PinnedExpanded
-        } else if size.width >= 160.0 {
-            PanelLayout::PinnedPeek
-        } else {
-            PanelLayout::PinnedCollapsed
-        };
+        let layout = pinned_layout_from_size(size.width, size.height);
         let (width, _) = docking::size_for(DockSide::Top, layout, dynamic_island_compatible(app));
         let (target_x, target_y) = docking::pinned_top_position(bounds, width);
         let position = window.outer_position()?.to_logical::<f64>(scale);
@@ -272,6 +266,14 @@ fn pinned_top_rect<R: Runtime>(window: &WebviewWindow<R>) -> tauri::Result<Optio
     }))
 }
 
+fn layout_dock_side(side: DockSide, layout: PanelLayout) -> DockSide {
+    if layout.is_pinned() || layout.is_widgets() {
+        DockSide::Top
+    } else {
+        side
+    }
+}
+
 pub fn apply_side_layout<R: Runtime>(
     window: &WebviewWindow<R>,
     side: DockSide,
@@ -279,18 +281,31 @@ pub fn apply_side_layout<R: Runtime>(
     layout: PanelLayout,
     dynamic_island_compatible: bool,
 ) -> tauri::Result<(f64, f64)> {
-    let Some((work, _, _)) = work_rect(window)? else {
+    let requested_side = side;
+    let side = layout_dock_side(side, layout);
+    let Some((work, scale, _)) = work_rect(window)? else {
         return Ok((0.0, 0.0));
     };
     let (width, height) = docking::size_for(side, layout, dynamic_island_compatible);
-    let along = along.unwrap_or_else(|| docking::default_along(work, side, width, height));
+    let along = if layout.is_widgets()
+        && !layout.is_pinned()
+        && (requested_side != DockSide::Top || along.is_none())
+    {
+        // A side dock's `along` value is vertical. On entry to widgets use the
+        // current horizontal center instead, then clamp to the top work area.
+        let pos = window.outer_position()?.to_logical::<f64>(scale);
+        let size = window.outer_size()?.to_logical::<f64>(scale);
+        pos.x + size.width * 0.5 - width * 0.5
+    } else {
+        along.unwrap_or_else(|| docking::default_along(work, side, width, height))
+    };
     let (x, y) = if layout.is_pinned() {
         let bounds = pinned_top_rect(window)?.unwrap_or(work);
         docking::pinned_top_position(bounds, width)
     } else {
         docking::docked_position(work, side, along, width, height)
     };
-    platform::windows::set_window_bounds(window, x, y, width, height)?;
+    platform::windows::set_window_bounds(window, x, y, width, height, side)?;
     Ok((x, y))
 }
 
@@ -298,10 +313,8 @@ pub fn apply_layout(app: &AppHandle, layout: PanelLayout) -> tauri::Result<()> {
     apply_layout_at(app, layout, None, None)
 }
 
-/// Prepare the full WebView surface at the target screen coordinates without
-/// changing the outer HWND yet. The UI waits for that surface to paint before
-/// `apply_layout_at` exposes it, eliminating the stale collapsed-frame copy on
-/// Windows expansion.
+/// Ensure the fixed WebView canvas is ready before changing the outer clip.
+/// Ordinary preparation does not resize or move an already initialized canvas.
 pub fn prepare_layout_surface(
     app: &AppHandle,
     layout: PanelLayout,
@@ -322,11 +335,7 @@ pub fn prepare_layout_surface(
         w: size.width,
         h: size.height,
     };
-    let side = if layout.is_pinned() {
-        DockSide::Top
-    } else {
-        docking::nearest_side(work, win)
-    };
+    let side = layout_dock_side(docking::nearest_side(work, win), layout);
     let dynamic_island_compatible =
         dynamic_island_override.unwrap_or_else(|| dynamic_island_compatible(app));
     let (width, height) = docking::size_for(side, layout, dynamic_island_compatible);
@@ -338,7 +347,7 @@ pub fn prepare_layout_surface(
         docking::docked_position(work, side, along, width, height)
     };
 
-    platform::windows::prepare_window_bounds(&window, x, y, width, height)
+    platform::windows::prepare_window_bounds(&window, x, y, width, height, side)
 }
 
 pub fn apply_layout_at(
@@ -361,11 +370,7 @@ pub fn apply_layout_at(
         w: size.width,
         h: size.height,
     };
-    let side = if layout.is_pinned() {
-        DockSide::Top
-    } else {
-        docking::nearest_side(work, win)
-    };
+    let side = layout_dock_side(docking::nearest_side(work, win), layout);
     let dynamic_island_compatible =
         dynamic_island_override.unwrap_or_else(|| dynamic_island_compatible(app));
     let (target_width, target_height) = docking::size_for(side, layout, dynamic_island_compatible);
@@ -429,12 +434,23 @@ pub fn move_panel(app: &AppHandle, x: f64, y: f64) -> tauri::Result<()> {
 }
 
 fn layout_from_size(_side: DockSide, width: f64, height: f64) -> PanelLayout {
-    if height >= 280.0 {
+    if width >= 600.0 && height >= 200.0 {
+        PanelLayout::Widgets
+    } else if height >= 280.0 {
         PanelLayout::Expanded
     } else if width >= 160.0 {
         PanelLayout::Peek
     } else {
         PanelLayout::Collapsed
+    }
+}
+
+fn pinned_layout_from_size(width: f64, height: f64) -> PanelLayout {
+    match layout_from_size(DockSide::Top, width, height) {
+        PanelLayout::Widgets | PanelLayout::PinnedWidgets => PanelLayout::PinnedWidgets,
+        PanelLayout::Expanded | PanelLayout::PinnedExpanded => PanelLayout::PinnedExpanded,
+        PanelLayout::Peek | PanelLayout::PinnedPeek => PanelLayout::PinnedPeek,
+        PanelLayout::Collapsed | PanelLayout::PinnedCollapsed => PanelLayout::PinnedCollapsed,
     }
 }
 
@@ -486,6 +502,7 @@ pub fn dock_after_drag_at(
                 pos.y,
                 target.width,
                 target.height,
+                target.side,
             )?;
         }
         remember_logical(app, pos.x, pos.y, scale);
@@ -581,7 +598,7 @@ pub fn resize_pinned_panel(app: &AppHandle, width: f64, height: f64) -> tauri::R
     let width = width.min(bounds.w.max(docking::ICON_SIZE));
     let height = height.min(bounds.h.max(docking::ICON_SIZE));
     let (x, y) = docking::pinned_top_position(bounds, width);
-    platform::windows::set_window_bounds(&window, x, y, width, height)?;
+    platform::windows::set_window_bounds(&window, x, y, width, height, DockSide::Top)?;
     remember_logical(app, x, y, window.scale_factor()?);
     Ok(DockChanged {
         side: DockSide::Top,
@@ -593,8 +610,8 @@ pub fn resize_pinned_panel(app: &AppHandle, width: f64, height: f64) -> tauri::R
 }
 
 /// Resize a single animation frame while preserving the active dock anchor.
-/// Unlike `apply_layout`, this accepts intermediate dimensions so the WebView
-/// backing surface grows and shrinks continuously with the visible panel.
+/// Unlike `apply_layout`, this accepts intermediate outer clip dimensions.
+/// The fixed WebView backing canvas stays the same size throughout.
 pub fn resize_panel_frame(
     app: &AppHandle,
     width: f64,
@@ -641,9 +658,13 @@ pub fn resize_panel_frame(
     let side = docking::nearest_side(work, win);
     let width = width.min(work.w.max(docking::ICON_SIZE));
     let height = height.min(work.h.max(docking::ICON_SIZE));
-    let along = docking::along_axis(side, pos.x, pos.y);
+    // Preserve the orb anchor across animated frames exactly like the
+    // discrete layout applies do. Anchoring the raw left/top coordinate made
+    // every unpinned drawer fold drift a top pill sideways by half the
+    // width delta, slowly walking the orb away from its centered spot.
+    let along = docking::along_preserving_orb(side, win, width, height);
     let (x, y) = docking::docked_position(work, side, along, width, height);
-    platform::windows::set_window_bounds(&window, x, y, width, height)?;
+    platform::windows::set_window_bounds(&window, x, y, width, height, side)?;
     remember_logical(app, x, y, scale);
 
     Ok(DockChanged {
@@ -673,7 +694,14 @@ fn commit_dock(
     work: Rect,
     target: DockTarget,
 ) -> tauri::Result<()> {
-    platform::windows::set_window_bounds(window, target.x, target.y, target.width, target.height)?;
+    platform::windows::set_window_bounds(
+        window,
+        target.x,
+        target.y,
+        target.width,
+        target.height,
+        target.side,
+    )?;
     let along = docking::along_axis(target.side, target.x, target.y);
     let _ = work;
     persist_dock(app, key, target.side, along);
@@ -876,7 +904,8 @@ pub fn expand_and_focus(app: &AppHandle) {
 #[cfg(test)]
 mod tests {
     use super::{
-        layout_from_size, overlay_native_topmost, panel_menu_position, pinned_top_uses_full_monitor,
+        layout_dock_side, layout_from_size, overlay_native_topmost, panel_menu_position,
+        pinned_layout_from_size, pinned_top_uses_full_monitor,
     };
     use crate::docking::{PanelLayout, Rect};
     use crate::domain::DockSide;
@@ -887,6 +916,37 @@ mod tests {
             layout_from_size(DockSide::Top, 420.0, 520.0),
             PanelLayout::Expanded
         );
+    }
+
+    #[test]
+    fn widget_size_is_distinct_from_expanded_and_wide_peek() {
+        for side in [DockSide::Top, DockSide::Left, DockSide::Right] {
+            assert_eq!(layout_from_size(side, 800.0, 260.0), PanelLayout::Widgets);
+        }
+        assert_eq!(layout_from_size(DockSide::Top, 600.0, 200.0), PanelLayout::Widgets);
+        assert_eq!(layout_from_size(DockSide::Top, 800.0, 199.0), PanelLayout::Peek);
+        assert_eq!(layout_from_size(DockSide::Top, 599.0, 420.0), PanelLayout::Expanded);
+        assert_eq!(layout_from_size(DockSide::Top, 800.0, 48.0), PanelLayout::Peek);
+        assert_eq!(layout_from_size(DockSide::Top, 440.0, 420.0), PanelLayout::Expanded);
+    }
+
+    #[test]
+    fn pinned_settling_keeps_widgets_instead_of_using_the_narrow_task_layout() {
+        let layout = pinned_layout_from_size(800.0, 260.0);
+        assert_eq!(layout, PanelLayout::PinnedWidgets);
+        assert_eq!(crate::docking::size_for(DockSide::Top, layout, false), (800.0, 260.0));
+        assert_eq!(pinned_layout_from_size(440.0, 420.0), PanelLayout::PinnedExpanded);
+        assert_eq!(pinned_layout_from_size(520.0, 48.0), PanelLayout::PinnedPeek);
+        assert_eq!(pinned_layout_from_size(48.0, 48.0), PanelLayout::PinnedCollapsed);
+    }
+
+    #[test]
+    fn widgets_always_choose_top_while_tasks_keep_their_unpinned_dock() {
+        for side in [DockSide::Top, DockSide::Left, DockSide::Right] {
+            assert_eq!(layout_dock_side(side, PanelLayout::Widgets), DockSide::Top);
+            assert_eq!(layout_dock_side(side, PanelLayout::PinnedWidgets), DockSide::Top);
+            assert_eq!(layout_dock_side(side, PanelLayout::Expanded), side);
+        }
     }
 
     #[test]

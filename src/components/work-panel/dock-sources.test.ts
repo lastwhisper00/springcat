@@ -3,7 +3,9 @@ import {
   dockCarousel,
   dockCarouselTasks,
   dockMotion,
+  runningTasks,
   runningSources,
+  selectRepresentativeSource,
 } from "./dock-sources";
 import type { TaskItem } from "$domain";
 
@@ -54,6 +56,70 @@ describe("dockCarouselTasks", () => {
     const waiting = task({ id: "waiting", status: "waiting", source: "grok-cli" });
     expect(dockCarouselTasks([waiting], { kind: "waiting", task: waiting })).toEqual([waiting]);
     expect(dockCarouselTasks([], { kind: "idle" })).toEqual([]);
+  });
+
+  it("counts running tasks separately from their unique sources across the full list", () => {
+    const tasks = [
+      ...Array.from({ length: 5 }, (_, index) =>
+        task({ id: `waiting-${index}`, status: "waiting", source: "codex" }),
+      ),
+      task({ id: "a", status: "running", source: "cursor" }),
+      task({ id: "b", status: "running", source: "cursor" }),
+      task({ id: "c", status: "running", source: "zcode" }),
+    ];
+
+    expect(runningTasks(tasks)).toHaveLength(3);
+    expect(runningSources(tasks)).toEqual(["cursor", "zcode"]);
+  });
+});
+
+describe("selectRepresentativeSource", () => {
+  it("keeps the previous source while any of its tasks is still running", () => {
+    const tasks = [
+      task({ id: "first", status: "running", source: "codex" }),
+      task({ id: "finished", status: "completed", source: "cursor" }),
+      task({ id: "active", status: "running", source: "cursor" }),
+    ];
+
+    expect(selectRepresentativeSource(tasks, "cursor")).toBe("cursor");
+    expect(selectRepresentativeSource([...tasks].reverse(), "cursor")).toBe("cursor");
+  });
+
+  it("changes to the first running source only when the previous source stops", () => {
+    const tasks = [
+      task({ id: "waiting", status: "waiting", source: "cursor" }),
+      task({ id: "active", status: "running", source: "codex" }),
+      task({ id: "also-active", status: "running", source: "zcode" }),
+    ];
+
+    expect(selectRepresentativeSource(tasks, "cursor", "cursor")).toBe("codex");
+    expect(selectRepresentativeSource(tasks, null, "cursor")).toBe("codex");
+  });
+
+  it("retains the last source when all tasks have stopped, including after clearing the list", () => {
+    const tasks = [
+      task({ id: "finished", status: "completed", source: "cursor" }),
+      task({ id: "waiting", status: "waiting", source: "codex" }),
+    ];
+
+    expect(selectRepresentativeSource(tasks, "cursor", "codex")).toBe("cursor");
+    expect(selectRepresentativeSource([], "cursor")).toBe("cursor");
+  });
+
+  it("uses the surface fallback or latest task on the initial selection", () => {
+    const tasks = [
+      task({ id: "older", status: "completed", source: "cursor" }),
+      task({
+        id: "latest",
+        status: "waiting",
+        source: "zcode",
+        updatedAt: "2026-08-13T05:00:00.000Z",
+      }),
+    ];
+
+    expect(selectRepresentativeSource(tasks, null, "codex")).toBe("codex");
+    expect(selectRepresentativeSource(tasks, null)).toBe("zcode");
+    expect(selectRepresentativeSource([], null)).toBeNull();
   });
 });
 

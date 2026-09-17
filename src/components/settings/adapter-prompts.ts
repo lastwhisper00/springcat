@@ -3,6 +3,7 @@ import type { AdapterSource } from "$services/tauri";
 export const ADAPTERS: { id: AdapterSource; label: string; detail: string }[] = [
   { id: "codex", label: "Codex", detail: "桌面端与 CLI" },
   { id: "cursor", label: "Cursor", detail: "编辑器与 Agent CLI" },
+  { id: "zcode", label: "ZCode", detail: "桌面 AI 编码客户端" },
   { id: "grok-cli", label: "Grok CLI", detail: "终端编码 Agent" },
   { id: "gemini-cli", label: "Gemini CLI", detail: "Google 终端 Agent" },
   { id: "workbuddy", label: "WorkBuddy", detail: "本地会话监听" },
@@ -48,6 +49,34 @@ export function bindPrompt(source: AdapterSource, bridgePath: string, _inboxDir:
           BeforeAgent: [geminiNested("task.started")],
           AfterTool: [geminiNested("task.progress")],
           AfterAgent: [geminiNested("task.completed")],
+        },
+      },
+      null,
+      2,
+    );
+  }
+
+  if (source === "zcode") {
+    const zcodeNested = (event: "task.started" | "task.progress" | "task.completed") => ({
+      hooks: [
+        {
+          type: "process",
+          command: bridge,
+          args: ["emit", "--source", "zcode", "--event", event],
+          timeoutMs: 5000,
+        },
+      ],
+    });
+    return JSON.stringify(
+      {
+        hooks: {
+          enabled: true,
+          events: {
+            UserPromptSubmit: [zcodeNested("task.started")],
+            PostToolUse: [zcodeNested("task.progress")],
+            PostToolUseFailure: [zcodeNested("task.progress")],
+            Stop: [zcodeNested("task.completed")],
+          },
         },
       },
       null,

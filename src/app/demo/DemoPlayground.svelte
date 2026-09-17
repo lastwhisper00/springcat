@@ -1,7 +1,10 @@
 <script lang="ts">
+  import { flushSync } from "svelte";
   import type { DockSide, PanelLayout, SurfaceState } from "$domain";
   import { deriveSurfaceState } from "$domain";
   import WorkPanel from "$components/work-panel/WorkPanel.svelte";
+  import { shellSize } from "$components/work-panel/copy";
+  import { PANEL_SIZE, type PanelPage } from "$components/work-panel/panel-layout";
   import {
     closeCapsulePlan,
     foldPlan,
@@ -13,30 +16,41 @@
     type MotionFlow,
     type MotionFrame,
   } from "$components/work-panel/panel-motion";
-  import { DEMO_TASK_LIST, tasksForKind, type DemoKind } from "./fixtures";
+  import { tasksForKind, type DemoKind } from "./fixtures";
 
   const kinds: { id: DemoKind; label: string }[] = [
-    { id: "idle", label: "idle" },
-    { id: "working", label: "working" },
-    { id: "working-many", label: "2 running" },
-    { id: "waiting", label: "waiting" },
-    { id: "completed", label: "completed" },
-    { id: "failed", label: "failed" },
-    { id: "completed-many", label: "3 completed" },
+    { id: "mixed", label: "混合任务" },
+    { id: "many", label: "8 项任务" },
+    { id: "working", label: "Codex 执行" },
+    { id: "working-many", label: "多来源执行" },
+    { id: "waiting", label: "待确认" },
+    { id: "completed", label: "已完成" },
+    { id: "failed", label: "失败" },
+    { id: "idle", label: "无任务" },
   ];
 
-  let kind = $state<DemoKind>("idle");
-  let dockSide = $state<DockSide>("right");
-  let layout = $state<PanelLayout>("collapsed");
+  let kind = $state<DemoKind>("many");
+  let dockSide = $state<DockSide>("top");
+  let layout = $state<PanelLayout>("expanded");
   let pinned = $state(false);
+  let panelPage = $state<PanelPage>("tasks");
   let dynamicIslandCompatible = $state(false);
   let flow = $state<MotionFlow>("idle");
-  let motionFrame = $state<MotionFrame>(idleFrame("collapsed"));
-
-  const tasks = $derived(kind === "idle" ? [] : kind === "waiting" ? DEMO_TASK_LIST : tasksForKind(kind));
-  const surface = $derived<SurfaceState>(
-    deriveSurfaceState(kind === "waiting" ? DEMO_TASK_LIST : tasksForKind(kind)),
-  );
+  let motionFrame = $state<MotionFrame>(idleFrame("expanded"));
+  let readAll = $state(false);
+  let demoNotice = $state("示例数据；这里使用与桌面程序相同的组件。");
+  let monitorWidth = $state(640);
+  const hostWidth = $derived(Math.min(
+    Math.max(
+      PANEL_SIZE.widgets.width,
+      shellSize(dockSide, "expanded", "strip", pinned, dynamicIslandCompatible).width,
+      shellSize(dockSide, "peek", "strip", pinned, dynamicIslandCompatible).width,
+    ),
+    Math.max(1, monitorWidth - 24),
+  ));
+  const tasks = $derived(tasksForKind(kind).map(task => readAll ? { ...task, unread: false } : task));
+  const surface = $derived<SurfaceState>(deriveSurfaceState(tasks));
+  $effect(() => { kind; readAll = false; });
 
   function cycleLayout() {
     if (flow !== "idle") return;
@@ -54,7 +68,12 @@
   }
 
   async function playMotion(nextFlow: Exclude<MotionFlow, "idle">, plan: MotionBeat[]) {
-    flow = nextFlow;
+    flushSync(() => {
+      flow = nextFlow;
+      motionFrame = plan[0].frame;
+    });
+    // Let the seed geometry paint before the shared timeline starts moving it.
+    await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
     await runMotionPlan(
       plan,
       (frame) => {
@@ -100,13 +119,22 @@
     await playMotion("unfolding", unfoldPlan());
     settle("expanded");
   }
+
+  async function togglePage() {
+    if (flow !== "idle") return;
+    dockSide = "top";
+    flow = "unfolding";
+    panelPage = panelPage === "tasks" ? "widgets" : "tasks";
+    await new Promise(resolve => setTimeout(resolve,
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 400));
+    settle("expanded");
+  }
 </script>
 
 <div class="page">
   <header class="intro">
-    <p class="kicker">工作面板</p>
-    <h1>贴边图标</h1>
-    <p>空闲只留一颗圆点。开合共用三拍：窄条出现 → 球体滑到内侧 → 再展开列表。左侧内侧在右，右侧内侧在左。</p>
+    <h1>核心界面预览</h1>
+    <p>任务列表、摘要胶囊与收起光球。球内是智能体 Logo，微光表示执行中。</p>
   </header>
 
   <div class="controls">
@@ -120,7 +148,7 @@
       <legend>吸附边</legend>
       {#each ["top", "left", "right"] as side}
         <button type="button" class:active={dockSide === side} onclick={() => (dockSide = side as DockSide)}>
-          {side}
+          {({ top: "顶部", left: "左侧", right: "右侧" })[side]}
         </button>
       {/each}
     </fieldset>
@@ -150,7 +178,7 @@
             settle(item as PanelLayout);
           }}
         >
-          {item}
+          {({ collapsed: "收起光球", peek: "摘要胶囊", expanded: "展开列表" })[item]}
         </button>
       {/each}
     </fieldset>
@@ -175,9 +203,18 @@
     </fieldset>
   </div>
 
-  <div class="monitor" data-dock={dockSide} data-pinned={pinned}>
-    <WorkPanel {surface} {tasks} {dockSide} {layout} {pinned} {dynamicIslandCompatible} {flow} {motionFrame} onclick={cycleLayout} />
+  <div class="monitor" data-dock={dockSide} data-pinned={pinned} bind:clientWidth={monitorWidth}>
+    <div class="demo-surface" style:width={`${hostWidth}px`}>
+      <WorkPanel {surface} {tasks} {dockSide} {layout} {pinned} {panelPage} {dynamicIslandCompatible} {flow} {motionFrame}
+        fillWindow availableWidth={hostWidth}
+        controlsBusy={flow !== "idle"}
+        onclick={cycleLayout} onpilltoggle={() => layout === "expanded" ? void playFold() : void playUnfold()}
+        onpintoggle={() => { pinned = !pinned; if (pinned) dockSide = "top"; }}
+        onpagetoggle={togglePage} onmarkallread={() => { readAll = true; demoNotice = "已标记已读，任务状态保持不变。"; }}
+        ontaskopen={(task) => { demoNotice = `示例：桌面程序会打开「${task.title}」的来源工具。`; }} />
+    </div>
   </div>
+  <p class="preview-note" role="status">{demoNotice}</p>
 </div>
 
 <style>
@@ -185,14 +222,8 @@
     min-height: 100%;
     padding: 28px 32px 48px;
     color: #24302b;
-  }
-
-  .kicker {
-    margin: 0 0 6px;
-    font-size: 11px;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: #5d6f66;
+    background: #f5f6f8;
+    color-scheme: light;
   }
 
   h1 {
@@ -254,29 +285,37 @@
     overflow: hidden;
   }
 
-  .monitor :global(.shell) {
+  .demo-surface {
     position: absolute;
+    height: 420px;
   }
 
-  .monitor[data-dock="top"] :global(.shell) {
-    top: 8px;
-    right: 24px;
+  .monitor[data-dock="top"] .demo-surface {
+    top: 24px;
+    left: 50%;
+    transform: translateX(-50%);
   }
 
-  .monitor[data-dock="top"][data-pinned="true"] :global(.shell) {
+  .monitor[data-dock="top"][data-pinned="true"] .demo-surface {
     top: 0;
     right: auto;
     left: 50%;
     transform: translateX(-50%);
   }
 
-  .monitor[data-dock="right"] :global(.shell) {
+  .monitor[data-dock="right"] .demo-surface {
     top: 72px;
     right: 6px;
   }
 
-  .monitor[data-dock="left"] :global(.shell) {
+  .monitor[data-dock="left"] .demo-surface {
     top: 72px;
     left: 6px;
+  }
+  .preview-note { margin-top: 12px; color: #536171; font-size: 13px; }
+  @media (max-width: 600px) {
+    .page { padding: 20px 14px; }
+    .controls { gap: 8px; }
+    fieldset { flex-wrap: wrap; }
   }
 </style>

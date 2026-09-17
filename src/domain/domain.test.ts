@@ -79,6 +79,19 @@ describe("parseTaskEvent", () => {
     ).toBe("gemini-cli");
   });
 
+  it("accepts ZCode as a first-class task source", () => {
+    expect(
+      parseTaskEvent({
+        schemaVersion: 1,
+        eventId: "zcode-1",
+        source: "zcode",
+        type: "task.completed",
+        taskId: "session-1",
+        occurredAt: "2026-09-01T08:00:00.000Z",
+      })?.source,
+    ).toBe("zcode");
+  });
+
   it("accepts Marvis as a first-class task source", () => {
     expect(
       parseTaskEvent({

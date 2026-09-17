@@ -17,6 +17,26 @@ export function runningSources(tasks: TaskItem[]): TaskSource[] {
   return sources;
 }
 
+/** Keep a running source visible without rotating between agents or task pages. */
+export function selectRepresentativeSource(
+  tasks: TaskItem[],
+  previousSource: TaskSource | null,
+  fallback: TaskSource | null = null,
+): TaskSource | null {
+  const sources = runningSources(tasks);
+  if (sources.length > 0) {
+    return previousSource && sources.includes(previousSource) ? previousSource : sources[0];
+  }
+  if (previousSource) return previousSource;
+  if (fallback) return fallback;
+
+  const latest = tasks.reduce<TaskItem | null>(
+    (current, task) => !current || task.updatedAt > current.updatedAt ? task : current,
+    null,
+  );
+  return latest?.source ?? null;
+}
+
 export function dockMotion(state: SurfaceState): DockMotion {
   switch (state.kind) {
     case "working":

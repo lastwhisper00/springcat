@@ -11,6 +11,7 @@ use crate::paths;
 
 const HOOK_TIMEOUT_SECONDS: u64 = 5;
 const GEMINI_HOOK_TIMEOUT_MILLIS: u64 = 5_000;
+const ZCODE_HOOK_TIMEOUT_MILLIS: u64 = 5_000;
 
 #[derive(Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -49,6 +50,8 @@ pub fn status(source: TaskSource) -> Result<AdapterInstallStatus, String> {
         "已安装。Grok CLI 的新会话会自动发送开始、进度和完成状态。"
     } else if installed && source == TaskSource::GeminiCli {
         "已安装。Gemini CLI 会通过原生 hooks 自动发送开始、进度和完成状态。"
+    } else if installed && source == TaskSource::Zcode {
+        "已安装。ZCode 的新会话会通过 configuration hooks 自动发送开始、进度和完成状态。"
     } else if installed {
         "已安装，后续对话会自动发送开始、进度和完成状态。"
     } else if hooks_installed {
@@ -124,7 +127,8 @@ fn ensure_supported(source: TaskSource) -> Result<(), String> {
         | TaskSource::GeminiCli
         | TaskSource::WorkBuddy
         | TaskSource::Marvis
-        | TaskSource::DshDesktop => Ok(()),
+        | TaskSource::DshDesktop
+        | TaskSource::Zcode => Ok(()),
         _ => Err("这个适配器暂不支持自动安装".to_string()),
     }
 }
@@ -192,6 +196,7 @@ fn source_key(source: TaskSource) -> &'static str {
         TaskSource::WorkBuddy => "workbuddy",
         TaskSource::Marvis => "marvis",
         TaskSource::DshDesktop => "dsh-desktop",
+        TaskSource::Zcode => "zcode",
         TaskSource::Unknown => "unknown",
     }
 }
@@ -203,6 +208,7 @@ fn config_path(source: TaskSource) -> Result<PathBuf, String> {
         TaskSource::Cursor => Ok(home.join(".cursor").join("hooks.json")),
         TaskSource::GrokCli => Ok(home.join(".grok").join("hooks").join("springcat.json")),
         TaskSource::GeminiCli => Ok(home.join(".gemini").join("settings.json")),
+        TaskSource::Zcode => Ok(home.join(".zcode").join("cli").join("config.json")),
         _ => Err("这个适配器暂不支持自动安装".to_string()),
     }
 }
@@ -300,6 +306,9 @@ fn hooks_object(root: &mut Value) -> Result<&mut Map<String, Value>, String> {
 
 fn install_hooks(root: &mut Value, bridge: &Path, source: TaskSource) -> Result<(), String> {
     remove_springcat_hooks(root, source)?;
+    if source == TaskSource::Zcode {
+        return install_zcode_hooks(root, bridge, source);
+    }
     if source == TaskSource::Cursor {
         root.as_object_mut()
             .expect("validated object")
@@ -402,6 +411,50 @@ fn install_hooks(root: &mut Value, bridge: &Path, source: TaskSource) -> Result<
     Ok(())
 }
 
+/// ZCode keeps configuration hooks under `hooks.events` and only runs them when
+/// `hooks.enabled` is explicitly true. Everything else in the config file stays
+/// untouched.
+fn install_zcode_hooks(root: &mut Value, bridge: &Path, source: TaskSource) -> Result<(), String> {
+    let mut hooks_root = root
+        .as_object_mut()
+        .expect("validated object")
+        .entry("hooks")
+        .or_insert_with(|| json!({}))
+        .take();
+    let hooks_map = hooks_root
+        .as_object_mut()
+        .ok_or_else(|| "hooks 字段必须是 JSON 对象".to_string())?;
+    hooks_map.insert("enabled".to_string(), json!(true));
+    let events = hooks_map
+        .entry("events")
+        .or_insert_with(|| json!({}))
+        .as_object_mut()
+        .ok_or_else(|| "hooks.events 字段必须是 JSON 对象".to_string())?;
+    for (event, lifecycle) in [
+        ("UserPromptSubmit", "task.started"),
+        ("PostToolUse", "task.progress"),
+        ("PostToolUseFailure", "task.progress"),
+        ("Stop", "task.completed"),
+    ] {
+        add_codex_hook(events, event, zcode_process_hook(bridge, source, lifecycle))?;
+    }
+    root.as_object_mut()
+        .expect("validated object")
+        .insert("hooks".to_string(), hooks_root);
+    Ok(())
+}
+
+/// ZCode runs `process` hooks as an argument vector without a shell, which is
+/// the portable choice on Windows; its timeout is milliseconds.
+fn zcode_process_hook(bridge: &Path, source: TaskSource, event: &str) -> Value {
+    json!({
+        "type": "process",
+        "command": bridge.display().to_string(),
+        "args": ["emit", "--source", source_key(source), "--event", event],
+        "timeoutMs": ZCODE_HOOK_TIMEOUT_MILLIS
+    })
+}
+
 fn command_hook(bridge: &Path, source: TaskSource, event: Option<&str>, codex: bool) -> Value {
     let command = hook_command(bridge, source, event);
     if codex {
@@ -481,6 +534,9 @@ fn add_cursor_hook(
 }
 
 fn remove_springcat_hooks(root: &mut Value, source: TaskSource) -> Result<(), String> {
+    if source == TaskSource::Zcode {
+        return remove_zcode_hooks(root);
+    }
     let hooks = hooks_object(root)?;
     let event_names: &[&str] = match source {
         TaskSource::Codex => &["UserPromptSubmit", "PostToolUse", "Stop"],
@@ -532,18 +588,75 @@ fn strip_nested_entry(entry: &mut Value, source: TaskSource) -> bool {
     before == handlers.len() || !handlers.is_empty()
 }
 
-fn is_springcat_handler(value: &Value, source: TaskSource) -> bool {
-    ["command", "commandWindows"]
+/// Remove only SpringCat's own entries from `hooks.events`; `hooks.enabled` and
+/// every unrelated event stay exactly as the user configured them.
+fn remove_zcode_hooks(root: &mut Value) -> Result<(), String> {
+    let Some(events) = root
+        .get_mut("hooks")
+        .and_then(|hooks| hooks.get_mut("events"))
+        .and_then(Value::as_object_mut)
+    else {
+        return Ok(());
+    };
+    for event in [
+        "UserPromptSubmit",
+        "PostToolUse",
+        "PostToolUseFailure",
+        "Stop",
+    ] {
+        let Some(value) = events.get_mut(event) else {
+            continue;
+        };
+        let entries = value
+            .as_array_mut()
+            .ok_or_else(|| format!("hooks.events.{event} 必须是 JSON 数组"))?;
+        entries.retain_mut(|entry| strip_nested_entry(entry, TaskSource::Zcode));
+    }
+    Ok(())
+}
+
+/// Command strings plus `process`-style `args`, joined so `--source`/`--event`
+/// detection works for both hook shapes.
+fn handler_signature(value: &Value) -> String {
+    let mut parts: Vec<String> = ["command", "commandWindows"]
         .iter()
         .filter_map(|key| value.get(*key).and_then(Value::as_str))
-        .any(|command| {
-            command.contains("springcat-bridge")
-                && command.contains(&format!("--source {}", source_key(source)))
-        })
+        .map(str::to_string)
+        .collect();
+    if let Some(args) = value.get("args").and_then(Value::as_array) {
+        parts.extend(args.iter().filter_map(Value::as_str).map(str::to_string));
+    }
+    parts.join(" ")
+}
+
+fn is_springcat_handler(value: &Value, source: TaskSource) -> bool {
+    let signature = handler_signature(value);
+    signature.contains("springcat-bridge")
+        && signature.contains(&format!("--source {}", source_key(source)))
 }
 
 fn config_has_all_hooks(root: &Value, source: TaskSource) -> bool {
-    let Some(hooks) = root.get("hooks").and_then(Value::as_object) else {
+    if source == TaskSource::Zcode {
+        if root
+            .get("hooks")
+            .and_then(|hooks| hooks.get("enabled"))
+            .and_then(Value::as_bool)
+            != Some(true)
+        {
+            return false;
+        }
+    }
+    let Some(hooks) = root
+        .get("hooks")
+        .and_then(|hooks| {
+            if source == TaskSource::Zcode {
+                hooks.get("events")
+            } else {
+                Some(hooks)
+            }
+        })
+        .and_then(Value::as_object)
+    else {
         return false;
     };
     let requirements: &[(&str, Option<&str>)] = match source {
@@ -570,6 +683,12 @@ fn config_has_all_hooks(root: &Value, source: TaskSource) -> bool {
             ("AfterTool", Some("task.progress")),
             ("AfterAgent", Some("task.completed")),
         ],
+        TaskSource::Zcode => &[
+            ("UserPromptSubmit", Some("task.started")),
+            ("PostToolUse", Some("task.progress")),
+            ("PostToolUseFailure", Some("task.progress")),
+            ("Stop", Some("task.completed")),
+        ],
         _ => return false,
     };
 
@@ -594,13 +713,12 @@ fn config_has_all_hooks(root: &Value, source: TaskSource) -> bool {
 }
 
 fn handler_matches(value: &Value, source: TaskSource, expected_event: Option<&str>) -> bool {
-    ["command", "commandWindows"]
-        .iter()
-        .filter_map(|key| value.get(*key).and_then(Value::as_str))
-        .any(|command| {
-            is_springcat_handler(value, source)
-                && expected_event.is_none_or(|event| command.contains(&format!("--event {event}")))
-        })
+    if !is_springcat_handler(value, source) {
+        return false;
+    }
+    expected_event.is_none_or(|event| {
+        handler_signature(value).contains(&format!("--event {event}"))
+    })
 }
 
 fn write_json_atomic(path: &Path, value: &Value) -> Result<(), String> {
@@ -764,6 +882,73 @@ mod tests {
             removed["hooks"]["AfterTool"][0]["hooks"][0]["command"],
             "audit.exe"
         );
+    }
+
+    #[test]
+    fn zcode_install_uses_events_nesting_and_process_hooks() {
+        let temp = tempfile::tempdir().unwrap();
+        let config = temp.path().join("config.json");
+        let bridge = temp.path().join("springcat-bridge.exe");
+        fs::write(&bridge, b"bridge").unwrap();
+        fs::write(
+            &config,
+            serde_json::to_vec_pretty(&json!({
+                "model": { "provider": "zai" },
+                "hooks": {
+                    "enabled": false,
+                    "events": {
+                        "SessionStart": [{
+                            "hooks": [{ "type": "command", "command": "welcome.exe" }]
+                        }]
+                    }
+                }
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+
+        install_config_at(&config, &bridge, TaskSource::Zcode).unwrap();
+        let installed = read_json(&config).unwrap();
+
+        assert!(config_has_all_hooks(&installed, TaskSource::Zcode));
+        assert_eq!(installed["model"]["provider"], "zai");
+        assert_eq!(installed["hooks"]["enabled"], true);
+        assert_eq!(
+            installed["hooks"]["events"]["SessionStart"][0]["hooks"][0]["command"],
+            "welcome.exe"
+        );
+        let handler = &installed["hooks"]["events"]["UserPromptSubmit"][0]["hooks"][0];
+        assert_eq!(handler["type"], "process");
+        assert_eq!(handler["timeoutMs"], ZCODE_HOOK_TIMEOUT_MILLIS);
+        assert!(handler["command"].as_str().unwrap().contains("springcat-bridge"));
+        assert_eq!(
+            handler["args"].as_array().unwrap().last().unwrap(),
+            "task.started"
+        );
+
+        let mut removed = installed.clone();
+        remove_springcat_hooks(&mut removed, TaskSource::Zcode).unwrap();
+        assert!(!config_has_all_hooks(&removed, TaskSource::Zcode));
+        assert_eq!(removed["model"], installed["model"]);
+        assert_eq!(
+            removed["hooks"]["events"]["SessionStart"][0]["hooks"][0]["command"],
+            "welcome.exe"
+        );
+        // Uninstall only removes SpringCat commands, never the enabled flag.
+        assert_eq!(removed["hooks"]["enabled"], true);
+    }
+
+    #[test]
+    fn zcode_install_without_existing_config_creates_minimal_file() {
+        let temp = tempfile::tempdir().unwrap();
+        let config = temp.path().join("config.json");
+        let bridge = temp.path().join("springcat-bridge.exe");
+        fs::write(&bridge, b"bridge").unwrap();
+
+        install_config_at(&config, &bridge, TaskSource::Zcode).unwrap();
+        let installed = read_json(&config).unwrap();
+        assert!(config_has_all_hooks(&installed, TaskSource::Zcode));
+        assert_eq!(installed.as_object().unwrap().len(), 1);
     }
 
     #[test]

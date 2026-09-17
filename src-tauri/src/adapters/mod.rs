@@ -15,6 +15,7 @@ pub mod gemini_cli;
 pub mod grok_cli;
 pub mod marvis;
 pub mod workbuddy;
+pub mod zcode;
 
 pub fn adapt(source: TaskSource, vendor: &Value, envelope: &Value) -> Result<TaskEvent, String> {
     let result = catch_unwind(AssertUnwindSafe(|| match source {
@@ -25,6 +26,7 @@ pub fn adapt(source: TaskSource, vendor: &Value, envelope: &Value) -> Result<Tas
         TaskSource::WorkBuddy => workbuddy::from_vendor(vendor, envelope),
         TaskSource::Marvis => marvis::from_vendor(vendor, envelope),
         TaskSource::DshDesktop => dsh::from_vendor(vendor, envelope),
+        TaskSource::Zcode => zcode::from_vendor(vendor, envelope),
         TaskSource::Unknown => Err("unknown source".to_string()),
     }));
     match result {
@@ -278,6 +280,16 @@ mod tests {
         .unwrap();
         assert_eq!(grok.source, TaskSource::GrokCli);
         assert_eq!(grok.event_type, TaskEventType::Completed);
+
+        let zcode = adapt(
+            TaskSource::Zcode,
+            &load_fixture("tests/fixtures/zcode/stop-complete.json"),
+            &json!({}),
+        )
+        .unwrap();
+        assert_eq!(zcode.source, TaskSource::Zcode);
+        assert_eq!(zcode.event_type, TaskEventType::Completed);
+        assert_eq!(zcode.task_id, "zcode-7");
     }
 
     #[test]

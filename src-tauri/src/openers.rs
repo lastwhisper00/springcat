@@ -73,6 +73,7 @@ pub fn open_item(app: &AppHandle, task: &TaskItem) -> Result<(), String> {
         | TaskSource::WorkBuddy
         | TaskSource::Marvis
         | TaskSource::DshDesktop
+        | TaskSource::Zcode
         | TaskSource::Unknown => None,
     };
     if let Some(link) = generated_link {
@@ -195,6 +196,12 @@ fn open_source(app: &AppHandle, task: &TaskItem) -> Result<(), String> {
             }
             let _ = app.opener().open_url("dsh-desktop://", None::<&str>);
             let _ = spawn("DSH Desktop");
+        }
+        TaskSource::Zcode => {
+            if crate::platform::windows::focus_existing_process_window("ZCode.exe", "ZCode") {
+                return Ok(());
+            }
+            let _ = spawn("ZCode");
         }
         TaskSource::Unknown => {}
     }

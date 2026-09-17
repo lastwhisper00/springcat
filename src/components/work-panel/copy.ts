@@ -1,4 +1,5 @@
 import type { DockSide, SurfaceState, TaskItem, TaskSource } from "$domain";
+import { PANEL_SIZE, type PanelPage } from "./panel-layout";
 
 export const SOURCE_LABEL: Record<TaskSource, string> = {
   codex: "Codex",
@@ -8,6 +9,7 @@ export const SOURCE_LABEL: Record<TaskSource, string> = {
   workbuddy: "WorkBuddy",
   marvis: "Marvis",
   "dsh-desktop": "DSH",
+  zcode: "ZCode",
   unknown: "未知",
 };
 
@@ -96,8 +98,8 @@ export const ICON_SIZE = 48;
 export const PEEK_SIZE = { width: 268, height: 48 };
 export const PINNED_PEEK_SIZE = { width: 360, height: 48 };
 export const DYNAMIC_ISLAND_PINNED_PEEK_SIZE = { width: 520, height: 48 };
-export const EXPANDED_SIZE = { width: 360, height: 448 };
-export const DYNAMIC_ISLAND_PINNED_EXPANDED_SIZE = { width: 520, height: 448 };
+export const EXPANDED_SIZE = { width: 440, height: 420 };
+export const DYNAMIC_ISLAND_PINNED_EXPANDED_SIZE = { width: 440, height: 420 };
 
 export function shellSize(
   _dockSide: DockSide,
@@ -105,8 +107,10 @@ export function shellSize(
   _sideVariant: "strip" | "card" = "strip",
   pinned = false,
   dynamicIslandCompatible = false,
+  page: PanelPage = "tasks",
 ): { width: number; height: number } {
   if (layout === "expanded") {
+    if (page === "widgets") return PANEL_SIZE.widgets;
     return pinned && dynamicIslandCompatible
       ? DYNAMIC_ISLAND_PINNED_EXPANDED_SIZE
       : EXPANDED_SIZE;

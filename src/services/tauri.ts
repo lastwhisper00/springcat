@@ -4,6 +4,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { DailyUsage, DockSide, TaskItem } from "$domain";
 import type { ClientSettings } from "$domain/settings";
+import { nativePanelLayout, type PanelPage } from "$components/work-panel/panel-layout";
 
 export interface AppMeta {
   name: string;
@@ -11,6 +12,9 @@ export interface AppMeta {
   version: string;
   presentationMode: "work" | "pet";
   dataDirName: string;
+  /** Backend owns whether the overlay uses a stable Windows backing canvas. */
+  fixedOverlaySurface?: boolean;
+  widgetPanelSupported?: boolean;
 }
 
 export interface DockChanged {
@@ -23,6 +27,11 @@ export interface DockChanged {
 
 export function getAppMeta(): Promise<AppMeta> {
   return invoke<AppMeta>("app_meta");
+}
+
+/** Temporary motion-debugging beacon; drops errors so probes stay cheap. */
+export function uiLog(message: string): void {
+  void invoke("debug_log", { message }).catch(() => undefined);
 }
 
 export function resizePanel(width: number, height: number): Promise<void> {
@@ -42,9 +51,10 @@ export function applyPanelLayout(
   position?: { x: number; y: number } | null,
   pinned = false,
   dynamicIslandCompatible?: boolean,
+  page: PanelPage = "tasks",
 ): Promise<void> {
   return invoke("apply_panel_layout", {
-    layout: pinned ? `pinned-${layout}` : layout,
+    layout: nativePanelLayout(layout, pinned, page),
     x: position?.x,
     y: position?.y,
     dynamicIslandCompatible,
@@ -56,9 +66,10 @@ export function preparePanelLayout(
   position?: { x: number; y: number } | null,
   pinned = false,
   dynamicIslandCompatible?: boolean,
+  page: PanelPage = "tasks",
 ): Promise<void> {
   return invoke("prepare_panel_layout", {
-    layout: pinned ? `pinned-${layout}` : layout,
+    layout: nativePanelLayout(layout, pinned, page),
     x: position?.x,
     y: position?.y,
     dynamicIslandCompatible,
@@ -92,9 +103,10 @@ export function previewDock(): Promise<DockSide | null> {
 export function topPinTarget(
   layout: "collapsed" | "peek" | "expanded",
   dynamicIslandCompatible?: boolean,
+  page: PanelPage = "tasks",
 ): Promise<DockChanged> {
   return invoke("top_pin_target", {
-    layout: `pinned-${layout}`,
+    layout: nativePanelLayout(layout, true, page),
     dynamicIslandCompatible,
   });
 }
@@ -143,6 +155,31 @@ export function listTasks(): Promise<TaskItem[]> {
 
 export function listUsageMonth(month: string): Promise<DailyUsage[]> {
   return invoke("list_usage_month", { month });
+}
+
+export interface TodayUsage {
+  date: string;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+}
+
+export interface NetworkSnapshot {
+  connectionType: "wifi" | "ethernet" | "cellular" | "vpn" | "other" | "unknown" | "none";
+  status: "internet" | "local" | "offline" | "unknown";
+  foreignReachable: boolean;
+  reachableService: string | null;
+  latencyMs: number | null;
+  probes: Array<{ service: string; reachable: boolean; latencyMs: number | null }>;
+  checkedAt: string;
+}
+
+export function getWidgetTodayUsage(): Promise<TodayUsage> {
+  return invoke("widget_today_usage");
+}
+
+export function getWidgetNetwork(): Promise<NetworkSnapshot> {
+  return invoke("widget_network");
 }
 
 export function saveUsageShareImage(fileName: string, bytes: number[]): Promise<string> {
@@ -203,7 +240,7 @@ export function restartApp(): Promise<void> {
   return invoke("restart_app");
 }
 
-export type AdapterSource = "codex" | "cursor" | "grok-cli" | "gemini-cli" | "workbuddy" | "marvis" | "dsh-desktop";
+export type AdapterSource = "codex" | "cursor" | "grok-cli" | "gemini-cli" | "workbuddy" | "marvis" | "dsh-desktop" | "zcode";
 
 export interface AdapterBindInfo {
   inboxDir: string;
