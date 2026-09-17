@@ -147,6 +147,7 @@ springcat-ai/
 ## 更多文档
 
 - [项目描述](./docs/项目描述.md)
+- [供应商、Key 与云备份实施](./docs/provider-switch.md)
 - [适配器安装](./docs/adapters.md)
 - [实现路线](./docs/springcat-ai-v1.md)
 - [工程记录](./docs/dev-notes.md)
